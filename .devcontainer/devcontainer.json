@@ -1,0 +1,16 @@
+{
+    "name": "marbel-os",
+    "dockerFile": "Dockerfile",
+    "runArgs": [],
+
+    "settings": {
+        "terminal.integrated.shell.linux": "/bin/zsh"
+    },
+
+    "extensions": [
+        "justusadam.language-haskell",
+        "digitalassetholdingsllc.ghcide",
+        "arrterian.nix-env-selector",
+        "maxgabriel.brittany"
+    ]
+}

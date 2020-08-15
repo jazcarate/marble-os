@@ -1,0 +1,9 @@
+{
+    "nixEnvSelector.nixShellConfig": "${workspaceRoot}/shell.nix",
+    "files.associations": {
+        "*.hs": "haskell",
+    },
+    "[haskell]": {
+        "editor.defaultFormatter": "MaxGabriel.brittany"
+    }
+}

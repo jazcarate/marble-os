@@ -1,0 +1,20 @@
+cradle:
+    multi:
+      - path: "./page"
+        config:
+          cradle:
+            none:
+      - path: "./sample"
+        config:
+          cradle:
+            none:
+      - path: "./"
+        config:
+          cradle:
+            cabal:
+              - path: "./src"
+                component: "lib:marble-os"
+              - path: "./exe"
+                component: "exe:marble"
+              - path: "./test"
+                component: "test:marble-os-test"

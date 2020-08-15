@@ -1,0 +1,43 @@
+cabal-version:       3.0
+
+name:                marble-os
+version:             0.1.0.0
+description:         Run things at your own pace
+license:             MIT
+license-file:        LICENSE
+author:              Joaquin Florius
+maintainer:          j@florius.com.ar
+build-type:          Simple
+extra-source-files:  CHANGELOG.md, README.md
+
+common common-options
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  default-extensions: OverloadedStrings
+  build-depends:      base >=4.13 && <4.14
+
+library
+  import:             common-options
+  hs-source-dirs:     src
+  exposed-modules:    App
+  build-depends:      text
+                    , time
+
+executable marble
+  import:             common-options
+  hs-source-dirs:     exe
+  main-is:            Main.hs
+  build-depends:      marble-os
+  ghc-options:        -threaded
+                      -rtsopts
+                      -with-rtsopts=-N
+
+test-suite marble-os-test
+  import:             common-options
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Spec.hs
+  other-modules:      AppSpec
+  build-depends:      marble-os
+                    , hspec
+
