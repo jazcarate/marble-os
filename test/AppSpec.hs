@@ -2,7 +2,7 @@
 
 module AppSpec where
 
-import           App
+import           Test.Hspec
 
 spec :: Spec
 spec = do
