@@ -4,7 +4,7 @@ _A play on words with the phonetics of "marble os" and "marvellous"_
 
 # Usage
 1. Have a config file with the desired behaviour
-1. Run `marbel` with the config file, piped to the program you want to run: `$ marbel ./sample/calculator.mbl | ./sample/calculator.sh`
+1. Run `marble` with the config file, piped to the program you want to run: `$ marble ./sample/calculator.mbl | ./sample/calculator.sh`
 1. ???
 1. Profit
 
@@ -26,4 +26,4 @@ $ make help
 ```
 
 # Prod
-Build with `$ make build` and then run the executable `result/bin/marbel`
+Build with `$ make build` and then run the executable `result/bin/marble`

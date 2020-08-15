@@ -1,5 +1,5 @@
 {
-    "name": "marbel-os",
+    "name": "marble-os",
     "dockerFile": "Dockerfile",
     "runArgs": [],
 
