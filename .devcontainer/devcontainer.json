@@ -8,9 +8,10 @@
     },
 
     "extensions": [
-        "justusadam.language-haskell",
-        "digitalassetholdingsllc.ghcide",
-        "arrterian.nix-env-selector",
-        "maxgabriel.brittany"
-    ]
+		"justusadam.language-haskell",
+		"digitalassetholdingsllc.ghcide",
+		"arrterian.nix-env-selector",
+		"maxgabriel.brittany",
+		"streetsidesoftware.code-spell-checker"
+	]
 }

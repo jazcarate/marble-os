@@ -5,5 +5,10 @@
     },
     "[haskell]": {
         "editor.defaultFormatter": "MaxGabriel.brittany"
-    }
+    },
+    "cSpell.words": [
+        "Attoparsec",
+        "Hspec",
+        "metavar"
+    ]
 }

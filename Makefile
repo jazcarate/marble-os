@@ -16,4 +16,8 @@ repl: ## Repl
 	nix-shell \
 		--run "cabal new-repl"
 
-.PHONY: serve build test update-deps repl
+run: ## Run de program in dev mode. Pass arguments in ARGS var
+	nix-shell \
+		--run "cabal new-run marble -- $$ARGS"
+
+.PHONY: serve build test update-deps repl run

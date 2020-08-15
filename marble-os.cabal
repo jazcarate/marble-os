@@ -20,8 +20,13 @@ library
   import:             common-options
   hs-source-dirs:     src
   exposed-modules:    App
+                    , Duration
+                    , Args
   build-depends:      text
                     , time
+                    , optparse-applicative
+                    , attoparsec
+                    , bytestring
 
 executable marble
   import:             common-options
@@ -38,6 +43,7 @@ test-suite marble-os-test
   hs-source-dirs:     test
   main-is:            Spec.hs
   other-modules:      AppSpec
+                    , DurationSpec
   build-depends:      marble-os
                     , hspec
 
