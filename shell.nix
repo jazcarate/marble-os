@@ -2,7 +2,7 @@
 let
   inherit (nixpkgs) pkgs;
   inherit (pkgs) haskellPackages;
-  unstable = import (fetchTarball https://nixos.org/channels/nixos-unstable/nixexprs.tar.xz) { };
+  ghcide-nix = import (fetchTarball https://github.com/cachix/ghcide-nix/tarball/master) { };
 
   project = import ./release.nix;
 in
@@ -11,7 +11,7 @@ pkgs.stdenv.mkDerivation {
   buildInputs = project.env.nativeBuildInputs ++ [
     haskellPackages.cabal-install
     haskellPackages.ghcid
-    unstable.haskellPackages.ghcide # ghcide 0.2.0 needed for multicradle #hie.yaml
+    ghcide-nix.ghcide-ghc883
     haskellPackages.brittany
   ];
   shellHook = ''
