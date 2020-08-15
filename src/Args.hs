@@ -28,10 +28,10 @@ import qualified Duration                      as D
 import qualified Data.String                   as S
 
 data Configuration = Configuration
-  { config      :: T.Text
+  { path      :: T.Text
   , repeat      :: Bool
-  , tick      :: D.Duration
-  , delimiter :: T.Text } deriving (Show)
+  , tick        :: D.Duration
+  , delimiter   :: T.Text }
 
 configuration :: Parser Configuration
 configuration =

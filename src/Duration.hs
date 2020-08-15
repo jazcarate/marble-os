@@ -22,7 +22,7 @@ data DurMinute = DurMinute Int (Maybe DurSecond)   deriving (Eq, Ord, Show)
 data Duration  = DurationMicrosecond DurMicrosecond
                | DurationMillisecond DurMillisecond
                | DurationSecond DurSecond
-               | DurationMinute DurMinute deriving (Eq, Ord, Show)
+               | DurationMinute DurMinute deriving (Eq, Show)
 
 duration :: Parser Duration
 duration =

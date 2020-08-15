@@ -16,7 +16,7 @@ repl: ## Repl
 	nix-shell \
 		--run "cabal new-repl"
 
-run: ## Run de program in dev mode. Pass arguments in ARGS var
+run: ## Run de program in dev mode. Pass arguments in ARGS
 	nix-shell \
 		--run "cabal new-run marble -- $$ARGS"
 

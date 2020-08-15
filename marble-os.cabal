@@ -22,6 +22,7 @@ library
   exposed-modules:    App
                     , Duration
                     , Args
+                    , Mbl
   build-depends:      text
                     , time
                     , optparse-applicative
@@ -44,6 +45,7 @@ test-suite marble-os-test
   main-is:            Spec.hs
   other-modules:      AppSpec
                     , DurationSpec
+                    , MblSpec
   build-depends:      marble-os
                     , hspec
 
