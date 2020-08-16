@@ -9,7 +9,8 @@ import           Data.Attoparsec.ByteString.Char8
                                                 , endOfInput
                                                 , parseOnly
                                                 , char
-                                                , takeWhile1
+                                                , notChar
+                                                , many1
                                                 )
 import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
@@ -45,7 +46,9 @@ wait :: Delimiter -> Parser Action
 wait delim = char delim *> pure Wait
 
 print :: Delimiter -> Parser Action
-print delim = Print <$> takeWhile1 (\c -> c /= delim)
+print delim = Print <$> BS.pack <$> many1
+  (char '\\' *> char delim <> print' <|> print')
+  where print' = notChar delim
 
 mbl :: Configuration -> Parser MBL
 mbl conf = many $ wait del <|> print del where del = delimiter conf

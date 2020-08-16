@@ -22,6 +22,21 @@ E.g.:
 * `$ marble --tick=3m10s` - 3 minutes and 10 seconds _(this follows ISO 8601 duration spec. You can not jump units, and no spaces allowed)_
 * `$ marble --tick=1500` - 1500 seconds = 25 minutes
 
+## mbl syntax
+The `mbl` interpreter will parse the delimiter configured 👆 into "wait" and everything else into the output.
+If you need to output the characters in the delimiter, you can user another delimiter that does not crash, or escape the output string with `\`.
+
+e.g.: You can output "hyphenated-word" with this `mbl`:
+```mbl
+hyphenated\-word
+```
+
+If a `\` needs to be printed, it too has to be escaped.
+e.g.:You can output "\latex{is my passion}" with this `mbl`:
+```mbl
+\\latex{is my passion}
+```
+
 # What is this?
 I came across "marble diagrams" while looking at [JavaRX](https://rxjs-dev.firebaseapp.com/guide/testing/marble-testing).
 I got inspired by [`yes`](https://man7.org/linux/man-pages/man1/yes.1.html), and sometimes I needed to run things at specific times.

@@ -28,10 +28,13 @@ spec = do
         parse (configuration { delimiter = 'x' }) "xx-foo-x"
           `shouldBe` Right [Wait, Wait, Print "-foo-", Wait]
     describe "Escaped" $ do
-      it "can print the delimiter if escaped with \\ " $ do
+      it "can print the delimiter if escaped with \\" $ do
         parse configuration "--this is a\\-somewhat\\-convoluted example"
           `shouldBe` Right
                        [ Wait
                        , Wait
                        , Print "this is a-somewhat-convoluted example"
                        ]
+      it "needs to escape the escape" $ do
+        parse configuration "--\\\\--"
+          `shouldBe` Right [Wait, Wait, Print "\\", Wait, Wait]
