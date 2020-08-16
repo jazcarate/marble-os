@@ -3,7 +3,6 @@ module Args where
 import           Prelude                 hiding ( repeat )
 import           Options.Applicative            ( Parser
                                                 , strArgument
-                                                , strOption
                                                 , long
                                                 , metavar
                                                 , help
@@ -23,15 +22,9 @@ import           Options.Applicative            ( Parser
                                                 , (<**>)
                                                 )
 
-import qualified Data.Text                     as T
 import qualified Duration                      as D
 import qualified Data.String                   as S
-
-data Configuration = Configuration
-  { path      :: T.Text
-  , repeat      :: Bool
-  , tick        :: D.Duration
-  , delimiter   :: T.Text }
+import           Configuration
 
 configuration :: Parser Configuration
 configuration =
@@ -52,7 +45,8 @@ configuration =
           <> showDefault
           <> value defaultDuration
           )
-    <*> strOption
+    <*> option
+          (eitherReader parseDelimiter)
           (  long "delimiter"
           <> short 'd'
           <> metavar "CHAR"
@@ -61,10 +55,14 @@ configuration =
           <> value defaultDelimiter
           )
  where
-  defaultDelimiter = "-"
+  defaultDelimiter = '-'
   defaultDuration  = D.seconds 1
   parseDuration :: String -> Either String D.Duration
   parseDuration = D.parseDuration . S.fromString
+  parseDelimiter :: String -> Either String Delimiter
+  parseDelimiter d = case d of
+    x : [] -> Right x
+    _      -> Left $ "Invalid delimiter" <> d
 
 
 args :: IO Configuration

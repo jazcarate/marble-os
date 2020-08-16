@@ -14,19 +14,19 @@ import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
                                                 , (<|>)
                                                 )
+import qualified Configuration as C
 import           Mbl.Types
 
-parse :: ByteString -> Either String MBL
-parse = parseOnly (mbl <* endOfInput)
+parse :: C.Configuration -> ByteString -> Either String MBL
+parse conf = parseOnly (mbl conf <* endOfInput)
 
-delimiter :: Char
-delimiter = '-'
 
-wait :: Parser Action
-wait = char delimiter *> pure Wait
+wait :: C.Delimiter -> Parser Action
+wait delimiter = char delimiter *> pure Wait
 
-print :: Parser Action
-print = Print <$> takeWhile1 (\c -> c /= delimiter)
+print :: C.Delimiter -> Parser Action
+print delimiter= Print <$> takeWhile1 (\c -> c /= delimiter)
 
-mbl :: Parser MBL
-mbl = many $ wait <|> print
+mbl :: C.Configuration -> Parser MBL
+mbl conf = many $ wait delimiter <|> print delimiter
+    where delimiter = C.delimiter conf
