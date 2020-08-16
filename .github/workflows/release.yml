@@ -46,6 +46,7 @@ jobs:
 
     - name: Move release to known location
       run: |
+        mkdir -p result
         cp $(find ./dist-newstyle/build/ -name 'marble' -type f) ./result/marble
 
     - name: Upload Release Asset
