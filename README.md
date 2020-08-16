@@ -2,6 +2,10 @@
 ## Run things at your own pace
 _A play on words with the phonetics of "marble os" and "marvelous"_
 
+![Haskell CI](https://github.com/jazcarate/marble-os/workflows/Haskell%20CI/badge.svg)
+![Release (latest SemVer)](https://img.shields.io/github/v/release/jazcarate/marble-os?sort=semver)
+![License](https://img.shields.io/github/license/jazcarate/marble-os)
+
 # Usage
 1. Have a config file with the desired behavior
 1. Run `marble` with the config file, piped to the program you want to run: `$ marble ./sample/calculator.mbl | ./sample/calculator.sh`
