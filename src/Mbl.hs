@@ -24,6 +24,7 @@ import qualified Control.Monad                 as CM
 import qualified Data.ByteString.Char8         as BS
 import qualified Duration                      as D
 import qualified Data.Bool                     as B
+import qualified System.IO                     as S
 
 data Action = Wait | Print ByteString deriving (Show, Eq)
 
@@ -37,7 +38,7 @@ interpret config mlb = CM.forM_ (repeat' mlb) interpret'
   repeat' = B.bool id cycle (repeat config)
   interpret' :: Action -> IO ()
   interpret' Wait        = C.threadDelay $ D.toMicroseconds $ tick config
-  interpret' (Print str) = BS.putStrLn str
+  interpret' (Print str) = BS.putStrLn str >> S.hFlush S.stdout
 
 
 parse :: Configuration -> ByteString -> Either String MBL
