@@ -2,27 +2,36 @@ module MblSpec where
 
 import           Test.Hspec
 import           Mbl
-import           Mbl.Types
+import           Configuration
+import           Duration
 
--- TODO spaces between
+configuration :: Configuration
+configuration = Configuration "/foo/bar" False (seconds 1) '-'
 
 spec :: Spec
 spec = do
   describe "Mbl" $ do
     describe "Simple" $ do
       it "can parse waits" $ do
-        parseMbl "---" `shouldBe` Right [Wait, Wait, Wait]
+        parse configuration "---" `shouldBe` Right [Wait, Wait, Wait]
       it "can parse prints" $ do
-        parseMbl "foo" `shouldBe` Right [Print "foo"]
+        parse configuration "foo" `shouldBe` Right [Print "foo"]
     describe "Combo" $ do
       it "can parse waits and prints" $ do
-        parseMbl "-foo--bar"
+        parse configuration "-foo--bar"
           `shouldBe` Right [Wait, Print "foo", Wait, Wait, Print "bar"]
     describe "Edge case" $ do
       it "parses empty string ok" $ do
-        parseMbl ""
-          `shouldBe` Right []
+        parse configuration "" `shouldBe` Right []
+    describe "Configuration" $ do
+      it "can change delimiter" $ do
+        parse (configuration { delimiter = 'x' }) "xx-foo-x"
+          `shouldBe` Right [Wait, Wait, Print "-foo-", Wait]
     describe "Escaped" $ do
       it "can print the delimiter if escaped with \\ " $ do
-        parseMbl "--this is a\\-somewhat\\-convoluted example"
-          `shouldBe` Right [Wait, Wait, Print "this is a-somewhat-convoluted example"]
+        parse configuration "--this is a\\-somewhat\\-convoluted example"
+          `shouldBe` Right
+                       [ Wait
+                       , Wait
+                       , Print "this is a-somewhat-convoluted example"
+                       ]

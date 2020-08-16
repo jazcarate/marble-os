@@ -23,10 +23,8 @@ library
                     , Duration
                     , Args
                     , Mbl
-  other-modules:      Mbl.Interpreter
-                    , Mbl.Parser
-                    , Mbl.Types
                     , Configuration
+  other-modules:
   build-depends:      text
                     , time
                     , optparse-applicative
