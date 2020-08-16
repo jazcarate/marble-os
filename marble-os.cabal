@@ -44,7 +44,7 @@ test-suite marble-os-test
   import:             common-options
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
-  main-is:            Spec.hs
+  main-is:            Main.hs
   other-modules:      AppSpec
                     , DurationSpec
                     , MblSpec
