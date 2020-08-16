@@ -12,6 +12,8 @@ _A play on words with the phonetics of "marble os" and "marvelous"_
 1. ???
 1. Profit
 
+[![asciicast](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D.svg)](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D)
+
 ## Options
 | Option    | Description                                        | Example       | Default value |
 |-----------|----------------------------------------------------|---------------|---------------|

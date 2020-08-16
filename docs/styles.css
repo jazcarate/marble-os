@@ -81,6 +81,14 @@ a:hover {
     text-align: center
 }
 
+.drop {
+    line-height: 4em;
+}
+
+.drop a {
+    color: #777;
+}
+
 .title,
 .tagline {
     text-transform: uppercase
