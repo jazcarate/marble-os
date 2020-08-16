@@ -1,0 +1,54 @@
+on:
+    push:
+      # Sequence of patterns matched against refs/tags
+      tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+  
+  name: Upload Release Asset
+  
+  jobs:
+    build:
+      name: Upload Release Asset
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v2
+        - uses: actions/setup-haskell@v1
+          with:
+            ghc-version: '8.8.3'
+            cabal-version: '3.0'
+        - name: Cache
+          uses: actions/cache@v1
+          env:
+            cache-name: cache-cabal
+          with:
+            path: ~/.cabal
+            key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+            restore-keys: |
+              ${{ runner.os }}-build-${{ env.cache-name }}-
+              ${{ runner.os }}-build-
+              ${{ runner.os }}-
+        - name: Build project
+          run: cabal build all
+        - name: Create Release
+          id: create_release
+          uses: actions/create-release@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            tag_name: ${{ github.ref }}
+            release_name: Release ${{ github.ref }}
+            draft: false
+            prerelease: false
+        - name: Move release to known location
+          run: |
+            cp $(find ./dist-newstyle/build/ -name 'marble' -type f) ./result/marble
+        - name: Upload Release Asset
+          id: upload-release-asset 
+          uses: actions/upload-release-asset@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            upload_url: ${{ steps.create_release.outputs.upload_url }}
+            asset_path: ./result/marble
+            asset_name: marble
+            asset_content_type: application/octet-stream
