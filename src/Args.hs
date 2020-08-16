@@ -20,6 +20,7 @@ import           Options.Applicative            ( Parser
                                                 , helper
                                                 , header
                                                 , (<**>)
+                                                , auto
                                                 )
 
 import qualified Duration                      as D
@@ -31,6 +32,16 @@ configuration =
   Configuration
     <$> strArgument
           (metavar "CONFIG" <> help "Target marble config file" <> action "file"
+          )
+    <*> option
+          auto
+          (  long "lane"
+          <> short 'l'
+          <> help
+               "If the file is multi-line, what line should it use. (line count starts at 1)."
+          <> metavar "LINE_NUMBER"
+          <> showDefault
+          <> value 1
           )
     <*> switch
           (long "repeat" <> short 'r' <> help
@@ -62,7 +73,7 @@ configuration =
   parseDelimiter :: String -> Either String Delimiter
   parseDelimiter d = case d of
     x : [] -> Right x
-    _      -> Left $ "Invalid delimiter" <> d
+    _      -> Left $ "Invalid delimiter `" <> d <> "`. Must be 1 character."
 
 
 args :: IO Configuration

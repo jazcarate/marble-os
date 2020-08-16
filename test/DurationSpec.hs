@@ -6,8 +6,6 @@ import           Test.Hspec
 import           Duration
 import           Data.Either                    ( isLeft )
 
--- TODO spaces between
-
 spec :: Spec
 spec = do
   describe "Durations" $ do

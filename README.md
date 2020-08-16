@@ -9,11 +9,12 @@ _A play on words with the phonetics of "marble os" and "marvelous"_
 1. Profit
 
 ## Options
-| Option    | Description                                     | Example       | Default value |
-|-----------|-------------------------------------------------|---------------|---------------|
-| repeat    | Whether to repeat the sequence one it finishes  | --repeat      | false         |
-| tick      | Duration of each tick                           | --tick=5s     | 1 second      |
-| delimiter | The character to delimit ticks                  | --delimiter=x | "-"           |
+| Option    | Description                                        | Example       | Default value |
+|-----------|----------------------------------------------------|---------------|---------------|
+| repeat    | Whether to repeat the sequence one it finishes     | --repeat      | false         |
+| tick      | Duration of each tick                              | --tick=5s     | 1 second      |
+| delimiter | The character to delimit ticks                     | --delimiter=x | "-"           |
+| lane      | If the file is multi-line, what line should it use | --lane=3      | 1             |
 
 Note: Ticks can be written in seconds, or with `us`, `ms`, `s`, `m` (microseconds, milliseconds, seconds or minutes, respectively) or any combination of them.
 E.g.: 

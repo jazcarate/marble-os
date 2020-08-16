@@ -4,9 +4,10 @@ import           Test.Hspec
 import           Mbl
 import           Configuration
 import           Duration
+import           Data.Either                    ( isLeft )
 
 configuration :: Configuration
-configuration = Configuration "/foo/bar" False (seconds 1) '-'
+configuration = Configuration "/foo/bar" 1 False (seconds 1) '-'
 
 spec :: Spec
 spec = do
@@ -21,8 +22,8 @@ spec = do
         parse configuration "-foo--bar"
           `shouldBe` Right [Wait, Print "foo", Wait, Wait, Print "bar"]
     describe "Edge case" $ do
-      it "parses empty string ok" $ do
-        parse configuration "" `shouldBe` Right []
+      it "fail when parsing empty string" $ do
+        parse configuration "" `shouldSatisfy` isLeft
     describe "Configuration" $ do
       it "can change delimiter" $ do
         parse (configuration { delimiter = 'x' }) "xx-foo-x"
@@ -38,3 +39,6 @@ spec = do
       it "needs to escape the escape" $ do
         parse configuration "--\\\\--"
           `shouldBe` Right [Wait, Wait, Print "\\", Wait, Wait]
+    describe "multi-line" $ do
+      it "chooses the line configured" $ do
+        parse configuration { lane = 2 } "1\n2" `shouldBe` Right [Print "2"]

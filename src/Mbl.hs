@@ -3,6 +3,7 @@ module Mbl where
 import           Prelude                 hiding ( takeWhile
                                                 , print
                                                 , repeat
+                                                , lines
                                                 )
 import           Data.Attoparsec.ByteString.Char8
                                                 ( Parser
@@ -11,6 +12,7 @@ import           Data.Attoparsec.ByteString.Char8
                                                 , char
                                                 , notChar
                                                 , many1
+                                                , (<?>)
                                                 )
 import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
@@ -39,16 +41,26 @@ interpret config mlb = CM.forM_ (repeat' mlb) interpret'
 
 
 parse :: Configuration -> ByteString -> Either String MBL
-parse conf = parseOnly (mbl conf <* endOfInput)
+parse conf content = do
+  let lines = BS.lines content
+  let lane' = lane conf
+  line <- if (length lines >= lane')
+    then pure $ lines !! (lane' - 1)
+    else Left "Not enough lines to parse"
+  parseOnly (mbl conf <* endOfInput) line
 
 
 wait :: Delimiter -> Parser Action
-wait delim = char delim *> pure Wait
+wait delim = char delim *> pure Wait <?> "Wait"
 
 print :: Delimiter -> Parser Action
-print delim = Print <$> BS.pack <$> many1
-  (char '\\' *> char delim <> print' <|> print')
+print delim =
+  Print
+    <$> BS.pack
+    <$> many1 (char '\\' *> char delim <> print' <|> print')
+    <?> "Print"
   where print' = notChar delim
 
 mbl :: Configuration -> Parser MBL
-mbl conf = many $ wait del <|> print del where del = delimiter conf
+mbl conf = (many $ wait delim <|> print delim) <?> "One Line"
+  where delim = delimiter conf
