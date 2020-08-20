@@ -6,8 +6,8 @@ import           Configuration
 import           Duration
 import           Data.Either                    ( isLeft )
 
-configuration :: Configuration
-configuration = Configuration "/foo/bar" 1 False (seconds 1) '-'
+configuration :: RunConfiguration
+configuration = RunConfiguration "/foo/bar" 1 False (seconds 1) '-'
 
 spec :: Spec
 spec = do

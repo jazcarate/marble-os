@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Mbl where
 
 import           Prelude                 hiding ( takeWhile
@@ -18,20 +20,26 @@ import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
                                                 , (<|>)
                                                 )
-import           Configuration
+import           Configuration                  ( RunConfiguration(..)
+                                                , Delimiter
+                                                )
 import qualified Control.Concurrent            as C
 import qualified Control.Monad                 as CM
 import qualified Data.ByteString.Char8         as BS
 import qualified Duration                      as D
 import qualified Data.Bool                     as B
 import qualified System.IO                     as S
+import           Data.Serialize                 ( Serialize )
+import           GHC.Generics
 
-data Action = Wait | Print ByteString deriving (Show, Eq)
+data Action = Wait | Print ByteString deriving (Show, Eq, Generic)
 
 type MBL = [Action]
 
+instance Serialize Action
 
-interpret :: Configuration -> MBL -> IO ()
+
+interpret :: RunConfiguration -> MBL -> IO ()
 interpret config mlb = CM.forM_ (repeat' mlb) interpret'
  where
   repeat' :: MBL -> MBL
@@ -41,7 +49,7 @@ interpret config mlb = CM.forM_ (repeat' mlb) interpret'
   interpret' (Print str) = BS.putStrLn str >> S.hFlush S.stdout
 
 
-parse :: Configuration -> ByteString -> Either String MBL
+parse :: RunConfiguration -> ByteString -> Either String MBL
 parse conf content = do
   let lines = BS.lines content
   let lane' = lane conf
@@ -62,6 +70,6 @@ print delim =
     <?> "Print"
   where print' = notChar delim
 
-mbl :: Configuration -> Parser MBL
+mbl :: RunConfiguration -> Parser MBL
 mbl conf = (many $ wait delim <|> print delim) <?> "One Line"
   where delim = delimiter conf

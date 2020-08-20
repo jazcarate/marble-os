@@ -30,6 +30,12 @@ library
                     , optparse-applicative
                     , attoparsec
                     , bytestring
+                    , daemons
+                    , cursor
+                    , cereal
+                    , data-default
+                    , pipes
+                    , transformers
 
 executable marble
   import:             common-options

@@ -58,3 +58,19 @@ e.g.: `$ make run ARGS="./sample/calculator.mbl --tick=30"`
 
 # Prod
 Build with `$ make build` and then run the executable `result/bin/marble`
+
+# Missing
+### Citations
+Extend .mbl to allow citation-like commands.
+eg:
+
+```
+# foo.mbl
+---1--2
+
+[1]: Say something
+```
+This would, in 4 ticks, output `Say something`
+
+### TUI for the daemon
+`brics` tui to see all connected "sync" and .mbl before running.
