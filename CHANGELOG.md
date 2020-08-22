@@ -1,4 +1,8 @@
 # Revision history for marble-os
+## 0.1.2.0 -- 2020-08-16
+
+* Added daemon support
+
 ## 0.1.1.0 -- 2020-08-16
 
 * Added multiline support (via `--lane`)

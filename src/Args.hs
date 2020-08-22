@@ -23,8 +23,8 @@ import           Options.Applicative            ( Parser
                                                 , auto
                                                 , subparser
                                                 , command
+                                                , str
                                                 )
-
 import qualified Duration                      as D
 import qualified Data.String                   as S
 import qualified Configuration                 as C
@@ -42,15 +42,16 @@ remote =
           <> showDefault
           <> value 3000
           )
-    <*> option
-          auto
+    <*> (C.Host <$> option
+          str
           (  long "host"
           <> short 'h'
           <> help "Host to run the daemon."
           <> metavar "HOST"
           <> showDefault
-          <> value def
+          <> (value $ C.unHost def)
           )
+        )
 
 daemon :: Parser C.DaemonConfiguration
 daemon = C.DaemonConfiguration <$> daemonSubCmd <*> remote

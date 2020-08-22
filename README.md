@@ -8,13 +8,13 @@ _A play on words with the phonetics of "marble os" and "marvelous"_
 
 # Usage
 1. Have a config file with the desired behavior
-1. Run `marble` with the config file, piped to the program you want to run: `$ marble ./sample/calculator.mbl | ./sample/calculator.sh`
+1. Run `marble` with the config file, piped to the program you want to run: `$ marble run ./sample/calculator.mbl | ./sample/calculator.sh`
 1. ???
 1. Profit
 
 [![asciicast](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D.svg)](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D)
 
-## Options
+## Run Options
 | Option    | Description                                        | Example       | Default value |
 |-----------|----------------------------------------------------|---------------|---------------|
 | repeat    | Whether to repeat the sequence one it finishes     | --repeat      | false         |
@@ -28,6 +28,17 @@ E.g.:
 * `$ marble --tick=15` - 15 seconds
 * `$ marble --tick=3m10s` - 3 minutes and 10 seconds _(this follows ISO 8601 duration spec. You can not jump units, and no spaces allowed)_
 * `$ marble --tick=1500` - 1500 seconds = 25 minutes
+
+## Distributed Run Options
+`marble` can also be daemonized to run in-sync from multiple places.
+To do so, start `marble` with `sync` rather than `run`. This will wait until the corresponding `marble` is launched (via `marble daemon start`).
+
+In addition to the [run options](#Run-Options), these are the additional distributed options
+| Option | Description             | Example            | Default value |
+|--------|-------------------------|--------------------|---------------|
+| port   | Port to run the daemon. | --port=1337        | 3000          |
+| host   | Host to run the daemon. | --host=192.168.3.3 | localhost     |
+
 
 ## mbl syntax
 The `mbl` interpreter will parse the delimiter configured 👆 into "wait" and everything else into the output.

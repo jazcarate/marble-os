@@ -102,7 +102,7 @@ main = do
                                            options
                                            (handleCommands state)
         else pure ()
-      res <- D.runClient (T.unpack $ C.unHost host) port (command)
+      res <- D.runClient (C.unHost host) port (command)
       print (res :: Maybe Response)
      where
       command :: Command
@@ -111,7 +111,7 @@ main = do
         C.Start -> TriggerStart
     C.Sync (C.SyncConfiguration config' remote) -> do
       let port    = C.port remote
-      let host    = (T.unpack $ C.unHost $ C.host remote)
+      let host    = (C.unHost $ C.host remote)
       let options = def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
       if host == def
         then do
@@ -125,5 +125,5 @@ main = do
       res      <- D.runClient host port (Hello mbl)
       case res of
         Just (Start newMbl) -> interpret config' newMbl
-        _                   -> fail "TODO"
+        _                   -> fail $ show res
 

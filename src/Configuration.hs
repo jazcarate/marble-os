@@ -25,7 +25,7 @@ data Remote =  Remote { port   :: Port , host :: Host }
 
 data Configuration = Run RunConfiguration | Sync SyncConfiguration | Daemon DaemonConfiguration
 
-newtype Host = Host { unHost :: T.Text } deriving (Show, Eq, Read)
+newtype Host = Host { unHost :: String } deriving (Show, Eq, Read)
 
 type Port = Int
 
