@@ -1,3 +1,6 @@
+PID_FILE=~/.marble-os.pid
+	
+	
 help: ## Print documentation
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
@@ -20,4 +23,7 @@ run: ## Run de program in dev mode. Pass arguments in ARGS
 	nix-shell \
 		--run "cabal new-run marble -- $$ARGS"
 
-.PHONY: serve build test update-deps repl run
+kill-daemon: ## [Helper] Kill running daemon
+	test -s $(PID_FILE) && kill -9 `cat $(PID_FILE)` && rm $(PID_FILE)
+
+.PHONY: serve build test update-deps repl run kill-daemon

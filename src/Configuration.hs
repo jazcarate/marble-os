@@ -13,11 +13,12 @@ data RunConfiguration = RunConfiguration
   , tick        :: D.Duration
   , delimiter   :: Delimiter }
 
+
 data SyncConfiguration = SyncConfiguration RunConfiguration Remote
 
 data DaemonConfiguration = DaemonConfiguration DaemonSubConfiguration Remote
 
-data DaemonSubConfiguration = List | Start | Restart
+data DaemonSubConfiguration = List | Start
 
 data Remote =  Remote { port   :: Port , host :: Host }
 
