@@ -9,30 +9,22 @@ import           Prelude                 hiding ( takeWhile
                                                 )
 import           Data.Attoparsec.ByteString.Char8
                                                 ( Parser
-                                                , IResult(..)
-                                                , parse
                                                 , char
                                                 , notChar
                                                 , many1
                                                 , (<?>)
+                                                , parseOnly
                                                 , skipSpace
-                                                , anyChar
-                                                , manyTill
-                                                , satisfy
                                                 , endOfInput
                                                 , scan
-                                                , feed
                                                 , endOfLine
-                                                , takeTill
                                                 , option
                                                 )
 import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
                                                 , (<|>)
                                                 )
-import           Configuration                  ( RunConfiguration(..)
-                                                , Delimiter
-                                                )
+import           Configuration                  ( RunConfiguration(..) )
 import qualified Control.Concurrent            as C
 import qualified Control.Monad                 as CM
 import qualified Data.Map.Strict               as Map
@@ -42,7 +34,6 @@ import qualified Data.Bool                     as B
 import qualified System.IO                     as S
 import           Data.Serialize                 ( Serialize )
 import qualified Data.Bifunctor                as Bi
-import           Data.List                      ( intercalate )
 import           GHC.Generics
 import           Data.Attoparsec.Text           ( isEndOfLine )
 
@@ -63,21 +54,17 @@ interpret config mlb = CM.forM_ (repeat' mlb) interpret'
   interpret' (Print str) = BS.putStrLn str >> S.hFlush S.stdout
 
 
+preParser :: ByteString -> ByteString
+preParser = BS.filter (/= '\r') . (<> "\n\n")
+
 runParser :: RunConfiguration -> ByteString -> Either String MBL
 runParser conf content = do
   let lane' = lane conf
-  mblsWithRef <- parseOnly (lines conf) (content <> "\n")
+  mblsWithRef <- parseOnly (lines conf) (preParser content)
   let mbls' = bindRefs $ toRefs mblsWithRef
   if (length mbls' >= lane')
     then pure $ mbls' !! (lane' - 1)
     else Left "Not enough lines to parse"
-
-parseOnly :: Parser a -> ByteString -> Either String a
-parseOnly p s = case parse p s of
-  Fail _ []   err -> Left err
-  Fail _ ctxs err -> Left (intercalate " > " ctxs ++ ": " ++ err)
-  Done _ a        -> Right a
-  Partial _       -> Left "More input needed"
 
 data MBLLine = MBLCandidate MBL | RefLine RefLine deriving (Show)
 
@@ -103,7 +90,7 @@ bindRefs refs' = bindAction <$$> candidateMbls refs'
 
 ref :: RunConfiguration -> Parser (ByteString, ByteString)
 ref _ =
-  Bi.bimap BS.pack BS.pack
+  Bi.bimap BS.pack unescape
     <$> (   (,)
         <$> (  char '['
             *> many1 (notChar ']')
@@ -111,30 +98,30 @@ ref _ =
             <* skipSpace
             <* char ':'
             <* skipSpace
-            <* option () (endOfLine)
             )
-        <*> manyTill anyChar ((endOfLine <* char '[') <|> endOfInput)
+        <*> takeWhile1_ (not . end)
         <?> "One Ref line"
         )
+  where end c = isEndOfLine c
 
+print :: RunConfiguration -> Parser Action
+print conf = Print <$> unescape <$> takeWhile1_ (not . end) <?> "Print"
+ where
+  end c = c == delim || isEndOfLine c
+  delim = delimiter conf
 
-print :: Delimiter -> Parser Action
-print delim = Print <$> takeTill end <?> "Print"
-  where end c = c == delim || isEndOfLine c
-
-wait :: Delimiter -> Parser Action
-wait delim = char delim *> pure Wait <?> "Wait"
+wait :: RunConfiguration -> Parser Action
+wait conf = char delim *> pure Wait <?> "Wait" where delim = delimiter conf
 
 lines :: RunConfiguration -> Parser [MBLLine]
-lines conf =
-  many (RefLine <$> ref conf <|> (MBLCandidate <$> mbl conf)) <?> "Ref Lines"
+lines conf = many (line conf <* many1 endOfLine <* option () endOfInput)
+
+line :: RunConfiguration -> Parser MBLLine
+line conf =
+  (RefLine <$> ref conf <|> (MBLCandidate <$> mbl conf)) <?> "Ref Lines"
 
 mbl :: RunConfiguration -> Parser MBL
-mbl conf =
-  manyTill (wait delim <|> print delim) (endOfInput <|> endOfLine)
-    <?> "One MBL line"
-  where delim = delimiter conf
-
+mbl conf = many1 (wait conf <|> print conf) <?> "One MBL line"
 
 -- | Like `takeWhile`, but unconditionally take escaped characters.
 takeWhile_ :: (Char -> Bool) -> Parser BS.ByteString
@@ -147,3 +134,10 @@ takeWhile_ p = scan False p_
 -- | Like `takeWhile1`, but unconditionally take escaped characters.
 takeWhile1_ :: (Char -> Bool) -> Parser BS.ByteString
 takeWhile1_ = CM.mfilter (not . BS.null) . takeWhile_
+
+unescape :: ByteString -> ByteString
+unescape = BS.pack . unescape' . BS.unpack
+ where
+  unescape' ""              = ""
+  unescape' ('\\' : x : xs) = x : unescape' xs
+  unescape' (x        : xs) = x : unescape' xs
