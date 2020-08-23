@@ -9,7 +9,8 @@ import           Prelude                 hiding ( takeWhile
                                                 )
 import           Data.Attoparsec.ByteString.Char8
                                                 ( Parser
-                                                , parseOnly
+                                                , IResult(..)
+                                                , parse
                                                 , char
                                                 , notChar
                                                 , many1
@@ -19,8 +20,11 @@ import           Data.Attoparsec.ByteString.Char8
                                                 , manyTill
                                                 , satisfy
                                                 , endOfInput
+                                                , scan
+                                                , feed
                                                 , endOfLine
-                                                , isEndOfLine
+                                                , takeTill
+                                                , option
                                                 )
 import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
@@ -38,7 +42,9 @@ import qualified Data.Bool                     as B
 import qualified System.IO                     as S
 import           Data.Serialize                 ( Serialize )
 import qualified Data.Bifunctor                as Bi
+import           Data.List                      ( intercalate )
 import           GHC.Generics
+import           Data.Attoparsec.Text           ( isEndOfLine )
 
 data Action = Wait | Print ByteString deriving (Show, Eq, Generic)
 
@@ -57,60 +63,33 @@ interpret config mlb = CM.forM_ (repeat' mlb) interpret'
   interpret' (Print str) = BS.putStrLn str >> S.hFlush S.stdout
 
 
-parse :: RunConfiguration -> ByteString -> Either String MBL
-parse conf content = do
+runParser :: RunConfiguration -> ByteString -> Either String MBL
+runParser conf content = do
   let lane' = lane conf
-  mblsWithRef <- parseOnly (lines conf) content
+  mblsWithRef <- parseOnly (lines conf) (content <> "\n")
   let mbls' = bindRefs $ toRefs mblsWithRef
   if (length mbls' >= lane')
     then pure $ mbls' !! (lane' - 1)
     else Left "Not enough lines to parse"
 
+parseOnly :: Parser a -> ByteString -> Either String a
+parseOnly p s = case parse p s of
+  Fail _ []   err -> Left err
+  Fail _ ctxs err -> Left (intercalate " > " ctxs ++ ": " ++ err)
+  Done _ a        -> Right a
+  Partial _       -> Left "More input needed"
 
-wait :: Delimiter -> Parser Action
-wait delim = char delim *> pure Wait <?> "Wait"
+data MBLLine = MBLCandidate MBL | RefLine RefLine deriving (Show)
 
-print :: Delimiter -> Parser Action
-print delim =
-  Print
-    <$> BS.pack
-    <$> many (char '\\' *> char delim <|> satisfy end)
-    <?> "Print"
- where
-  end :: Char -> Bool
-  end c = c /= delim && c /= '\n' && c /= '\r'
+type RefLine = (ByteString, ByteString)
 
-lines :: RunConfiguration -> Parser [MBLLine]
-lines conf =
-  many (RefLine <$> ref conf <|> (MBLCandidate <$> mbl conf)) <?> "Ref Lines"
-
-data MBLLine = MBLCandidate MBL | RefLine RefLine
+data Ref = Ref { candidateMbls :: [MBL], refs :: Map.Map ByteString ByteString }
 
 toRefs :: [MBLLine] -> Ref
 toRefs mblLines = Ref mbls' refs'
  where
   mbls' = [ x | (MBLCandidate x) <- mblLines ]
   refs' = Map.fromList [ x | (RefLine x) <- mblLines ]
-
-type RefLine = (ByteString, ByteString)
-
-ref :: RunConfiguration -> Parser (ByteString, ByteString)
-ref _ =
-  Bi.bimap BS.pack BS.pack
-    <$> (   (,)
-        <$> (  char '['
-            *> many1 (notChar ']')
-            <* char ']'
-            <* skipSpace
-            <* char ':'
-            <* skipSpace
-            )
-        <*> manyTill anyChar ((endOfLine <* char '[') <|> endOfInput)
-        <?> "One Ref line"
-        )
-
-
-data Ref = Ref { candidateMbls :: [MBL], refs :: Map.Map ByteString ByteString }
 
 bindRefs :: Ref -> [MBL]
 bindRefs refs' = bindAction <$$> candidateMbls refs'
@@ -122,8 +101,49 @@ bindRefs refs' = bindAction <$$> candidateMbls refs'
     _               -> action
 
 
+ref :: RunConfiguration -> Parser (ByteString, ByteString)
+ref _ =
+  Bi.bimap BS.pack BS.pack
+    <$> (   (,)
+        <$> (  char '['
+            *> many1 (notChar ']')
+            <* char ']'
+            <* skipSpace
+            <* char ':'
+            <* skipSpace
+            <* option () (endOfLine)
+            )
+        <*> manyTill anyChar ((endOfLine <* char '[') <|> endOfInput)
+        <?> "One Ref line"
+        )
+
+
+print :: Delimiter -> Parser Action
+print delim = Print <$> takeTill end <?> "Print"
+  where end c = c == delim || isEndOfLine c
+
+wait :: Delimiter -> Parser Action
+wait delim = char delim *> pure Wait <?> "Wait"
+
+lines :: RunConfiguration -> Parser [MBLLine]
+lines conf =
+  many (RefLine <$> ref conf <|> (MBLCandidate <$> mbl conf)) <?> "Ref Lines"
+
 mbl :: RunConfiguration -> Parser MBL
 mbl conf =
   manyTill (wait delim <|> print delim) (endOfInput <|> endOfLine)
     <?> "One MBL line"
   where delim = delimiter conf
+
+
+-- | Like `takeWhile`, but unconditionally take escaped characters.
+takeWhile_ :: (Char -> Bool) -> Parser BS.ByteString
+takeWhile_ p = scan False p_
+ where
+  p_ escaped c | escaped   = Just False
+               | not $ p c = Nothing
+               | otherwise = Just (c == '\\')
+
+-- | Like `takeWhile1`, but unconditionally take escaped characters.
+takeWhile1_ :: (Char -> Bool) -> Parser BS.ByteString
+takeWhile1_ = CM.mfilter (not . BS.null) . takeWhile_

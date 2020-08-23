@@ -4,7 +4,7 @@
 module App where
 
 import           Args                           ( args )
-import           Mbl                            ( parse
+import           Mbl                            ( runParser
                                                 , interpret
                                                 , MBL
                                                 )
@@ -89,7 +89,7 @@ main = do
   case config of
     C.Run config' -> do
       contents <- BS.readFile $ T.unpack $ C.path config'
-      mbl      <- either (fail) pure $ parse config' contents
+      mbl      <- either (fail) pure $ runParser config' contents
       interpret config' mbl
     C.Daemon (C.DaemonConfiguration config' remote) -> do
       let port    = C.port remote
@@ -121,7 +121,7 @@ main = do
                                            (handleCommands state)
         else pure ()
       contents <- BS.readFile $ T.unpack $ C.path config'
-      mbl      <- either (fail) pure $ parse config' contents
+      mbl      <- either (fail) pure $ runParser config' contents
       res      <- D.runClient host port (Hello mbl)
       case res of
         Just (Start newMbl) -> interpret config' newMbl
