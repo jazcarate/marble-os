@@ -54,6 +54,19 @@ e.g.:You can output "\latex{is my passion}" with this `mbl`:
 ```mbl
 \\latex{is my passion}
 ```
+### Citations
+If you need `marble` to output multiline, or otherwise too big of a thing to inline in in the `.mbl` syntax, you can write citation-like references.
+A citation can be used multiple times, in multiple lanes. If a citation is described multiple times, the last one (the one closes to the end of the document) is the one taken into account.
+
+e.g.: If you wanted to output "one", but what to still keep marble alignment, you can have this valid `.mbl`
+```mbl
+--1--
+-2--1
+
+[1]: one
+```
+
+The first lane would wait for 2 ticks and print `one`, where the second lane would wait 1 tick, print `2`, wait two extra ticks and print `one`.
 
 # What is this?
 I came across "marble diagrams" while looking at [JavaRX](https://rxjs-dev.firebaseapp.com/guide/testing/marble-testing).
@@ -71,17 +84,6 @@ e.g.: `$ make run ARGS="./sample/calculator.mbl --tick=30"`
 Build with `$ make build` and then run the executable `result/bin/marble`
 
 # Missing
-### Citations
-Extend .mbl to allow citation-like commands.
-eg:
-
-```
-# foo.mbl
----1--2
-
-[1]: Say something
-```
-This would, in 4 ticks, output `Say something`
 
 ### TUI for the daemon
 `brics` tui to see all connected "sync" and .mbl before running.

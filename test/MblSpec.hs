@@ -42,3 +42,17 @@ spec = do
     describe "multi-line" $ do
       it "chooses the line configured" $ do
         parse configuration { lane = 2 } "1\n2" `shouldBe` Right [Print "2"]
+    describe "references" $ do
+      it "replaces the reference with the word" $ do
+        parse configuration "1\n[1]: foo" `shouldBe` Right [Print "foo"]
+      it "ignores additional references" $ do
+        parse configuration "1\n[2]: foo" `shouldBe` Right [Print "1"]
+      it "uses the last reference" $ do
+        parse configuration "1\n[1]: foo\n[1]: bar"
+          `shouldBe` Right [Print "bar"]
+      it "ignores white-spaces" $ do
+        parse configuration "1\n[1] :   foo" `shouldBe` Right [Print "foo"]
+      it "can do multi-line" $ do
+        parse configuration "1\n[1]: foo\nbar[2]: Biz"
+          `shouldBe` Right [Print "foo\nbar"]
+
