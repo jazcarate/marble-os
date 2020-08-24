@@ -23,6 +23,7 @@ import           Options.Applicative            ( Parser
                                                 , auto
                                                 , subparser
                                                 , command
+                                                , showDefaultWith
                                                 , str
                                                 )
 import           Control.Applicative            ( (<|>) )
@@ -30,6 +31,7 @@ import qualified Duration                      as D
 import qualified Data.String                   as S
 import qualified Configuration                 as C
 import           Data.Default                   ( def )
+import qualified Text.Read                     as R
 
 remote :: Parser C.Remote
 remote =
@@ -84,24 +86,24 @@ run =
     <$> strArgument
           (metavar "CONFIG" <> help "Target marble config file" <> action "file"
           )
-    <*> (   (C.Numbered <$> option
-              auto
+    <*> (   (option
+              ((C.Numbered <$> eitherReader parseNumber) <|> (C.Named <$> str))
               (  long "lane"
               <> short 'l'
+              <> short 'n'
               <> help
-                   "If the file is multi-line, what line should it use. (line count starts at 1)."
+                   "If the file is multi-line, what line should it use. -line count starts at 1-. You can also use the lane name."
               <> metavar "LINE_NUMBER"
-              <> showDefault
-              <> value 1
+              <> showDefaultWith (\(C.Numbered x) -> show x)
+              <> value (C.Numbered 1)
               )
             )
         <|> (C.Named <$> option
               str
-              (  long "name"
-              <> short 'n'
+              (  long "name" -- For those people that like to *name* their lanes with numbers 
               <> help
                    "If the file is multi-line, what lane name should it use. (named lanes start with a name and a `:')."
-              <> metavar "LANE_NAME"
+              <> metavar "NAME"
               )
             )
         )
@@ -136,6 +138,8 @@ run =
   parseDelimiter d = case d of
     x : [] -> Right x
     _      -> Left $ "Invalid delimiter `" <> d <> "`. Must be 1 character."
+  parseNumber :: String -> Either String Int
+  parseNumber = R.readEither
 
 
 args :: IO C.Configuration

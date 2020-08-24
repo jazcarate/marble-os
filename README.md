@@ -73,7 +73,7 @@ Lanes can also be named like so:
 foo: 1-2
 bar: 2-3
 ```
-Where you can `run` this marble as: `$ marble run --lane=1` or `$ marble run --name=foo`
+Where you can `run` this marble as: `$ marble run --lane=1` or `$ marble run --lane=foo`
 
 The first lane would wait for 2 ticks and print `one`, where the second lane would wait 1 tick, print `2`, wait two extra ticks and print `one`.
 
