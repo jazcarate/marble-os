@@ -37,6 +37,7 @@ library
                     , pipes
                     , transformers
                     , containers
+                    , microlens
 
 executable marble
   import:             common-options

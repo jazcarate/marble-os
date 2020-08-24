@@ -8,7 +8,7 @@ type Delimiter = Char
 
 data RunConfiguration = RunConfiguration
   { path        :: T.Text
-  , lane        :: Int
+  , lane        :: Lane
   , repeat      :: Bool
   , tick        :: D.Duration
   , delimiter   :: Delimiter }
@@ -19,6 +19,8 @@ data SyncConfiguration = SyncConfiguration RunConfiguration Remote
 data DaemonConfiguration = DaemonConfiguration DaemonSubConfiguration Remote
 
 data DaemonSubConfiguration = List | Start
+
+data Lane = Numbered Int | Named T.Text
 
 data Remote =  Remote { port   :: Port , host :: Host }
 

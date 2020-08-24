@@ -14,6 +14,7 @@
         "delim",
         "mbls",
         "metavar",
+        "mfilter",
         "subparser"
     ]
 }

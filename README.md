@@ -54,6 +54,7 @@ e.g.:You can output "\latex{is my passion}" with this `mbl`:
 ```mbl
 \\latex{is my passion}
 ```
+
 ### Citations
 If you need `marble` to output multiline, or otherwise too big of a thing to inline in in the `.mbl` syntax, you can write citation-like references.
 A citation can be used multiple times, in multiple lanes. If a citation is described multiple times, the last one (the one closes to the end of the document) is the one taken into account.
@@ -65,6 +66,14 @@ e.g.: If you wanted to output "one", but what to still keep marble alignment, yo
 
 [1]: one
 ```
+
+### Named
+Lanes can also be named like so:
+```mbl
+foo: 1-2
+bar: 2-3
+```
+Where you can `run` this marble as: `$ marble run --lane=1` or `$ marble run --name=foo`
 
 The first lane would wait for 2 ticks and print `one`, where the second lane would wait 1 tick, print `2`, wait two extra ticks and print `one`.
 
@@ -87,3 +96,7 @@ Build with `$ make build` and then run the executable `result/bin/marble`
 
 ### TUI for the daemon
 `brics` tui to see all connected "sync" and .mbl before running.
+
+### Bugs
+Starting a `sync` with no demon started fails
+> <socket: 16>: does not exist (Connection refused)

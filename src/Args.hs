@@ -25,6 +25,7 @@ import           Options.Applicative            ( Parser
                                                 , command
                                                 , str
                                                 )
+import           Control.Applicative            ( (<|>) )
 import qualified Duration                      as D
 import qualified Data.String                   as S
 import qualified Configuration                 as C
@@ -83,16 +84,27 @@ run =
     <$> strArgument
           (metavar "CONFIG" <> help "Target marble config file" <> action "file"
           )
-    <*> option
-          auto
-          (  long "lane"
-          <> short 'l'
-          <> help
-               "If the file is multi-line, what line should it use. (line count starts at 1)."
-          <> metavar "LINE_NUMBER"
-          <> showDefault
-          <> value 1
-          )
+    <*> (   (C.Numbered <$> option
+              auto
+              (  long "lane"
+              <> short 'l'
+              <> help
+                   "If the file is multi-line, what line should it use. (line count starts at 1)."
+              <> metavar "LINE_NUMBER"
+              <> showDefault
+              <> value 1
+              )
+            )
+        <|> (C.Named <$> option
+              str
+              (  long "name"
+              <> short 'n'
+              <> help
+                   "If the file is multi-line, what lane name should it use. (named lanes start with a name and a `:')."
+              <> metavar "LANE_NAME"
+              )
+            )
+        )
     <*> switch
           (long "repeat" <> short 'r' <> help
             "Whether to repeat the sequence one it finishes."

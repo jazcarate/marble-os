@@ -13,7 +13,6 @@ import qualified Data.Text                     as T
 import qualified Configuration                 as C
 import qualified Control.Concurrent.MVar       as Con
 import qualified System.Daemon                 as D
-import qualified Cursor.List                   as Cursor
 import           GHC.Generics
 import           Data.Serialize                 ( Serialize )
 import           Data.Default                   ( def )
@@ -35,7 +34,8 @@ data Command = Hello MBL
 
 instance Serialize Command
 
-type Registry = Cursor.ListCursor (MBL, Chan.Chan MBL)
+data Client = Client { mbls :: MBL, channel :: Chan.Chan MBL }
+newtype State = State { unClients :: [Client] }
 
 data Response = Started Int
               | Start MBL
@@ -51,8 +51,11 @@ data Response = Started Int
 
 instance Serialize Response
 
-handleCommands :: Con.MVar Registry -> DP.Handler ()
-handleCommands registryVar reader writer =
+emptyState :: State
+emptyState = State []
+
+handleCommands :: Con.MVar State -> DP.Handler ()
+handleCommands stateVar reader writer =
   P.runEffect
     $   writer
     <-< serializer
@@ -64,21 +67,21 @@ handleCommands registryVar reader writer =
     command <- P.await
     case command of
       List -> do
-        registry <- lift $ Con.readMVar registryVar
-        let mbls = fst <$> Cursor.rebuildListCursor registry
-        P.yield $ Listed mbls
+        clients <- lift $ Con.readMVar stateVar
+        let mbls' = mbls <$> unClients clients
+        P.yield $ Listed mbls'
       TriggerStart -> do
-        registry <- lift $ Con.readMVar registryVar
-        let n = Cursor.listCursorLength registry
-        lift $ M.forM_ (Cursor.rebuildListCursor registry) $ \reg ->
-          Chan.writeChan (snd reg) (fst reg)
+        clients <- lift $ unClients <$> Con.readMVar stateVar
+        let n = length clients
+        lift $ M.forM_ clients $ \client ->
+          Chan.writeChan (channel client) (mbls client)
         P.yield $ Started n
-        lift $ Con.modifyMVar_ registryVar $ \_ -> pure $ Cursor.emptyListCursor
+        lift $ Con.modifyMVar_ stateVar $ \_ -> pure $ emptyState
       Hello mbl -> do
         newChan <- lift Chan.newChan
-        let newReg = (mbl, newChan)
-        lift $ Con.modifyMVar_ registryVar $ \reg ->
-          pure $ Cursor.listCursorAppend newReg reg
+        let newClient = Client mbl newChan
+        lift $ Con.modifyMVar_ stateVar $ \state ->
+          pure $ state { unClients = unClients state <> [newClient] }
         newMbl <- lift $ Chan.readChan newChan
         P.yield $ Start newMbl
 
@@ -97,7 +100,7 @@ main = do
       let options = def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
       if host == def
         then do
-          state <- Con.newMVar Cursor.emptyListCursor
+          state <- Con.newMVar emptyState
           D.ensureDaemonWithHandlerRunning "marble-os"
                                            options
                                            (handleCommands state)
@@ -115,7 +118,7 @@ main = do
       let options = def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
       if host == def
         then do
-          state <- Con.newMVar Cursor.emptyListCursor
+          state <- Con.newMVar emptyState
           D.ensureDaemonWithHandlerRunning "marble-os"
                                            options
                                            (handleCommands state)
