@@ -33,6 +33,7 @@ import           Configuration                  ( ParseConfiguration(..)
                                                 , TickRate(..)
                                                 )
 import qualified Control.Concurrent            as C
+import qualified Data.Char                     as Char
 import qualified Control.Monad                 as CM
 import qualified Data.Map.Strict               as Map
 import qualified Data.ByteString.Char8         as BS
@@ -44,17 +45,63 @@ import qualified Data.Bifunctor                as Bi
 import           GHC.Generics                   ( Generic )
 import           Data.Attoparsec.Text           ( isEndOfLine )
 import qualified Lens.Micro                    as L
-import           Data.List                      ( find )
+import           Data.List                      ( find
+                                                , intercalate
+                                                )
 import           Lens.Micro                     ( (&)
                                                 , (^.)
                                                 , (%~)
                                                 )
-
+import           Data.Maybe                     ( catMaybes )
 import           Data.Default                   ( def )
+import qualified Control.Monad.Trans.State.Lazy
+                                               as T
 
-data Action = Wait D.Microseconds | Print ByteString deriving (Show, Eq, Generic)
+data Action = Wait D.Microseconds | Print ByteString deriving (Eq, Generic)
 type Name = ByteString
-data MBL = MBL { name :: Maybe Name, actions :: [Action], repeat :: Repeat  } deriving (Show, Generic)
+data MBL = MBL { name :: Maybe Name, actions :: [Action], repeat :: Repeat  } deriving (Generic)
+
+instance Show MBL where
+  show m = intercalate
+    ""
+    [ maybe "" (\n -> BS.unpack n <> ": ") $ name m
+    , intercalate "" $ charActions
+    , show $ repeat m
+    , showRefs longActions
+    ]
+   where
+    (charActions, longActions) =
+      unzip $ T.evalState (CM.mapM runRefs $ (actions m)) Map.empty
+    runRefs :: Action -> T.State (Map.Map String Char) (String, Maybe String)
+    runRefs a = if length s > 1
+      then do
+        map' <- T.get
+        let maxChar = maximum $ '`' : (snd <$> Map.toList map')
+        let mkey    = Map.lookup s map'
+        case mkey of
+          Nothing -> do
+            let newKey = nextChar maxChar
+            T.modify (Map.insert s newKey)
+            let is = [newKey]
+            return (is, Just $ "[" <> is <> "]: " <> s)
+          Just key -> pure ([key], Nothing)
+      else pure (s, Nothing)
+      where s = show a
+  showList ms = undefined
+
+nextChar :: Char -> Char
+nextChar c = Char.chr (Char.ord c + 1)
+
+showRefs :: [Maybe String] -> String
+showRefs mss = case catMaybes mss of
+  [] -> ""
+  ss -> "\n\n" <> (intercalate "\n" ss)
+
+
+instance Show Action where
+  show a = case a of
+    Wait  _ -> "-"
+    Print s -> BS.unpack s
 
 actionsL :: L.Lens' (MBL) [Action]
 actionsL = L.lens actions (\mbl' as -> mbl' { actions = as })

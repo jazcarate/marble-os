@@ -77,7 +77,9 @@ spec = do
       it "can interpret inline tick rate" $ do
         parse configuration "tick: 3s\n-" `shouldBe` Right [Wait threeSeconds]
       it "configuration overrides tick-rate" $ do
-        parse configuration { tickRateOverride = Just $ TickRate $ D.seconds 3 } "tick: 2m\n-"
+        parse
+            configuration { tickRateOverride = Just $ TickRate $ D.seconds 3 }
+            "tick: 2m\n-"
           `shouldBe` Right [Wait threeSeconds]
       it "fails with multiple tick rates" $ do
         parse configuration "tick: 3s\ntick: 2s-" `shouldSatisfy` isLeft
@@ -124,5 +126,34 @@ spec = do
     it "symbols can be escaped" $ do
       parse configuration "\\|--" `shouldBe` Right Once
     it "can be overridden in the configuration" $ do
-      parse configuration { repeatStrategyOverride = Just Once } "|--" `shouldBe` Right Once
-
+      parse configuration { repeatStrategyOverride = Just Once } "|--"
+        `shouldBe` Right Once
+  describe "Mbl Show" $ do
+    describe "Single Mbl" $ do
+      it "shows one char mbl inline" $ do
+        show <$> runParser configuration "--a-b" `shouldBe` Right "--a-b"
+      xit "shows the split" $ do --TODO handle split in show
+        show <$> runParser configuration "--a|b" `shouldBe` Right "--a|b"
+      it "keeps the name" $ do
+        show <$> runParser configuration "foo: 1" `shouldBe` Right "foo: 1"
+      it "shows multiple char in ref" $ do
+        show <$> runParser configuration "--foo-" `shouldBe` Right
+          "--a-\n\n[a]: foo"
+      it "shows single ref when repeated" $ do
+        show <$> runParser configuration "--foo-foo" `shouldBe` Right
+          "--a-a\n\n[a]: foo"
+    xdescribe "Multiple Mbls" $ do
+      it "shows one char mbl inline" $ do
+        show
+            [ MBL
+              (Nothing)
+              [ Print "foo"
+              , aWait
+              , Print "bar"
+              , aWait
+              , Print "foo"
+              ]
+              (Once)
+            , MBL (Nothing) [Print "foo", Wait $ D.Microseconds 3, Print "biz"] (Once)
+            ]
+          `shouldBe` "a-b-a\na---c\n\n[a]: foo\n[b]: bar\n[c]: biz"

@@ -24,8 +24,14 @@ data ParseConfiguration = ParseConfiguration
   , repeatStrategyOverride  :: Maybe Repeat }
 
 
-data Repeat = Infinite | Repeat Int | Once deriving (Show, Eq, Generic)
+data Repeat = Infinite | Repeat Int | Once deriving (Eq, Generic)
 instance Serialize Repeat
+
+instance Show Repeat where
+  show c = case c of
+    Infinite -> "|"
+    Repeat i -> if i > 3 then ">" ++ show i else replicate i '>'
+    Once     -> ""
 
 data RunConfiguration = RunConfiguration Source ParseConfiguration
 
