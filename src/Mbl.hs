@@ -81,19 +81,7 @@ runParser :: ParseConfiguration -> ByteString -> Either String MBL
 runParser conf content = do
   mbls <- parseAll conf content
   mlb' <- choose (lane conf) mbls
-  return $ overrides mlb'
- where
-  overrides :: MBL -> MBL
-  overrides = nameOverride' . tickRateOverride' . repeatStrategyOverride'
-  nameOverride' :: MBL -> MBL
-  nameOverride' = maybe id (\n m -> m { name = Just n }) (nameOverride conf)
-  tickRateOverride' :: MBL -> MBL
-  tickRateOverride' = maybe id
-                            (\t m -> m & actionsL . L.each %~ (changeTick t))
-                            (tickRateOverride conf)
-  repeatStrategyOverride' :: MBL -> MBL
-  repeatStrategyOverride' =
-    maybe id (\r m -> m { repeat = r }) (repeatStrategyOverride conf)
+  return $ mlb'
 
 changeTick :: TickRate -> Action -> Action
 changeTick tr a = case a of
@@ -123,7 +111,19 @@ parseAll conf content = do
   core         <- parseOnly (lines conf) (preParser content)
   intermediate <- toRefs core
   let mbls' = bindRefs intermediate
-  return mbls'
+  return $ overrides <$> mbls'
+ where
+  overrides :: MBL -> MBL
+  overrides = nameOverride' . tickRateOverride' . repeatStrategyOverride'
+  nameOverride' :: MBL -> MBL
+  nameOverride' = maybe id (\n m -> m { name = Just n }) (nameOverride conf)
+  tickRateOverride' :: MBL -> MBL
+  tickRateOverride' = maybe id
+                            (\t m -> m & actionsL . L.each %~ (changeTick t))
+                            (tickRateOverride conf)
+  repeatStrategyOverride' :: MBL -> MBL
+  repeatStrategyOverride' =
+    maybe id (\r m -> m { repeat = r }) (repeatStrategyOverride conf)
 
 
 type RefLine = (ByteString, ByteString)
@@ -224,7 +224,7 @@ repeatWithDefault :: Parser Repeat
 repeatWithDefault = repeat' <|> pure Once
 
 repeat' :: Parser Repeat
-repeat' = (char '|' *> pure Infinite) <|> (Repeat <$> looping) 
+repeat' = (char '|' *> pure Infinite) <|> (Repeat <$> looping)
  where
   looping :: Parser Int
   looping =

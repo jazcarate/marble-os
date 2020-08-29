@@ -11,6 +11,7 @@
         "Bifunctor",
         "Hspec",
         "bimap",
+        "concat",
         "delim",
         "mbls",
         "metavar",
