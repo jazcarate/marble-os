@@ -19,13 +19,17 @@ import           Data.Attoparsec.ByteString.Char8
                                                 , scan
                                                 , endOfLine
                                                 , option
+                                                , string
+                                                , scientific
                                                 )
 import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
                                                 , (<|>)
                                                 )
-import           Configuration                  ( RunConfiguration(..)
+import           Configuration                  ( ParseConfiguration(..)
                                                 , Lane(..)
+                                                , Repeat(..)
+                                                , TickRate(..)
                                                 )
 import qualified Control.Concurrent            as C
 import qualified Control.Monad                 as CM
@@ -33,11 +37,10 @@ import qualified Data.Map.Strict               as Map
 import qualified Data.ByteString.Char8         as BS
 import qualified Data.ByteString.Internal      as BSi
 import qualified Duration                      as D
-import qualified Data.Bool                     as B
 import qualified System.IO                     as S
 import           Data.Serialize                 ( Serialize )
 import qualified Data.Bifunctor                as Bi
-import           GHC.Generics
+import           GHC.Generics                   ( Generic )
 import           Data.Attoparsec.Text           ( isEndOfLine )
 import qualified Lens.Micro                    as L
 import           Data.List                      ( find )
@@ -45,38 +48,62 @@ import           Lens.Micro                     ( (&)
                                                 , (^.)
                                                 , (%~)
                                                 )
-import qualified Data.Text.Encoding            as T
 
-data Action = Wait | Print ByteString deriving (Show, Eq, Generic)
+import           Data.Default                   ( def )
 
-newtype Name = Name { unName :: ByteString } deriving (Show, Eq, Generic)
-data MBL = MBL { name :: Maybe Name, actions :: [Action]  } deriving (Show, Generic)
+data Action = Wait D.Microseconds | Print ByteString deriving (Show, Eq, Generic)
+type Name = ByteString
+data MBL = MBL { name :: Maybe Name, actions :: [Action], repeat :: Repeat  } deriving (Show, Generic)
 
-actionsL :: L.Lens' MBL [Action]
+actionsL :: L.Lens' (MBL) [Action]
 actionsL = L.lens actions (\mbl' as -> mbl' { actions = as })
 
 instance Serialize Action
 instance Serialize MBL
-instance Serialize Name
 
 
-interpret :: RunConfiguration -> MBL -> IO ()
-interpret config mlb' = CM.forM_ (repeat' mlb' ^. actionsL) interpret'
+interpret :: MBL -> IO ()
+interpret mbl' = do
+  CM.forM_ (mbl'' ^. actionsL) interpret'
  where
-  repeat' :: MBL -> MBL
-  repeat' mbl'' = mbl'' & actionsL %~ B.bool id cycle (repeat config)
+  mbl'' :: MBL
+  mbl'' = mbl' & actionsL %~ (repeatActions $ repeat mbl')
   interpret' :: Action -> IO ()
-  interpret' Wait        = C.threadDelay $ D.toMicroseconds $ tick config
-  interpret' (Print str) = BS.putStrLn str >> S.hFlush S.stdout
+  interpret' (Wait  micros) = C.threadDelay $ D.toInt micros
+  interpret' (Print str   ) = BS.putStrLn str >> S.hFlush S.stdout
 
 
 preParser :: ByteString -> ByteString
 preParser = BS.filter (/= '\r') . (<> "\n\n")
 
-runParser :: RunConfiguration -> ByteString -> Either String MBL
+runParser :: ParseConfiguration -> ByteString -> Either String MBL
 runParser conf content = do
-  mbls' <- parseAll conf content
-  choose (lane conf) mbls'
+  mbls <- parseAll conf content
+  mlb' <- choose (lane conf) mbls
+  return $ overrides mlb'
+ where
+  overrides :: MBL -> MBL
+  overrides = nameOverride' . tickRateOverride' . repeatStrategyOverride'
+  nameOverride' :: MBL -> MBL
+  nameOverride' = maybe id (\n m -> m { name = Just n }) (nameOverride conf)
+  tickRateOverride' :: MBL -> MBL
+  tickRateOverride' = maybe id
+                            (\t m -> m & actionsL . L.each %~ (changeTick t))
+                            (tickRateOverride conf)
+  repeatStrategyOverride' :: MBL -> MBL
+  repeatStrategyOverride' =
+    maybe id (\r m -> m { repeat = r }) (repeatStrategyOverride conf)
+
+changeTick :: TickRate -> Action -> Action
+changeTick tr a = case a of
+  Wait _ -> Wait (D.toMicroseconds $ unTickRate tr)
+  _      -> a
+
+repeatActions :: Repeat -> [a] -> [a]
+repeatActions s = case s of
+  Infinite -> cycle
+  Repeat i -> concat . (replicate i)
+  Once     -> id
 
 choose :: Lane -> [MBL] -> Either String MBL
 choose lane' mbls' = case lane' of
@@ -85,39 +112,64 @@ choose lane' mbls' = case lane' of
     else Left "Not enough lines to parse"
   Named laneName ->
     maybe (Left $ "No lane with the name " <> show laneName) Right
-      $ find (hasName $ T.encodeUtf8 laneName) mbls'
+      $ find (hasName laneName) mbls'
    where
     hasName :: ByteString -> MBL -> Bool
-    hasName needle mbl' = maybe False (\n -> unName n == needle) $ name mbl'
+    hasName needle mbl' = maybe False ((==) needle) $ name mbl'
 
-parseAll :: RunConfiguration -> ByteString -> Either String [MBL]
+parseAll :: ParseConfiguration -> ByteString -> Either String [MBL]
 parseAll conf content = do
-  mblsWithRef <- parseOnly (lines conf) (preParser content)
-  let mbls' = bindRefs $ toRefs mblsWithRef
+  core         <- parseOnly (lines conf) (preParser content)
+  intermediate <- toRefs core
+  let mbls' = bindRefs intermediate
   return mbls'
 
-data MBLLine = MBLCandidate MBL | RefLine RefLine
 
 type RefLine = (ByteString, ByteString)
 
-data IntermediateMBL = IntermediateMBL { candidateMbls :: [MBL], refs :: Map.Map ByteString ByteString }
+data CoreAction = CoreWait | CorePrint ByteString -- Unrefed
+data CoreMBL = CoreMBL { cName :: Maybe Name, cRepeat :: Repeat, cActions :: [CoreAction] }
+data Core = MBLLine CoreMBL | RefLine RefLine | TickRateLine TickRate
 
-toRefs :: [MBLLine] -> IntermediateMBL
-toRefs mblLines = IntermediateMBL mbls' refs'
+lines :: ParseConfiguration -> Parser [Core]
+lines conf =
+  many endOfLine *> many (line conf <* many1 endOfLine <* option () endOfInput)
+
+line :: ParseConfiguration -> Parser Core
+line conf =
+  (   (TickRateLine <$> tick conf)
+    <|> (RefLine <$> ref conf)
+    <|> (MBLLine <$> mbl conf)
+    )
+    <?> "Core Lines"
+
+data IntermediateMBL = IntermediateMBL { candidateMbls :: [CoreMBL], refs :: Map.Map ByteString ByteString, tickRate :: TickRate }
+toRefs :: [Core] -> Either String IntermediateMBL
+toRefs mblLines = IntermediateMBL <$> mbls' <*> refs' <*> tickRate'
  where
-  mbls' = [ x | (MBLCandidate x) <- mblLines ]
-  refs' = Map.fromList [ x | (RefLine x) <- mblLines ]
+  mbls'     = pure $ [ x | (MBLLine x) <- mblLines ]
+  refs'     = pure $ Map.fromList [ x | (RefLine x) <- mblLines ]
+  tickRate' = case [ x | (TickRateLine x) <- mblLines ] of
+    [a] -> Right a
+    []  -> Right def
+    _   -> Left "More than one tick rate is not allowed."
 
 bindRefs :: IntermediateMBL -> [MBL]
-bindRefs refs' = candidateMbls refs' & L.each . actionsL . L.each %~ bindAction
+bindRefs intermediate = bindCore <$> candidateMbls intermediate
  where
-  bindAction :: Action -> Action
+  bindCore :: CoreMBL -> MBL
+  bindCore core = MBL { name    = cName core
+                      , actions = bindAction <$> (cActions core)
+                      , repeat  = cRepeat core
+                      }
+  bindAction :: CoreAction -> Action
   bindAction action = case action of
-    Print candidate -> maybe action Print (Map.lookup candidate (refs refs'))
-    _               -> action
+    CorePrint candidate ->
+      maybe (Print candidate) Print (Map.lookup candidate (refs intermediate))
+    CoreWait -> Wait $ D.toMicroseconds $ unTickRate (tickRate intermediate)
 
 
-ref :: RunConfiguration -> Parser (ByteString, ByteString)
+ref :: ParseConfiguration -> Parser (ByteString, ByteString)
 ref _ =
   Bi.bimap BS.pack unescape
     <$> (   (,)
@@ -133,31 +185,47 @@ ref _ =
         )
   where end c = isEndOfLine c
 
-print :: RunConfiguration -> Parser Action
-print conf = Print <$> unescape <$> takeWhile1_ (not . end) <?> "Print"
+print :: ParseConfiguration -> Parser CoreAction
+print conf = CorePrint <$> unescape <$> takeWhile1_ (not . end) <?> "Print"
  where
   end c = c == delim || isEndOfLine c
   delim = delimiter conf
 
-wait :: RunConfiguration -> Parser Action
-wait conf = char delim *> pure Wait <?> "Wait" where delim = delimiter conf
+wait :: ParseConfiguration -> Parser CoreAction
+wait conf = char delim *> pure (CoreWait) <?> "Wait"
+  where delim = delimiter conf
 
-lines :: RunConfiguration -> Parser [MBLLine]
-lines conf = many (line conf <* many1 endOfLine <* option () endOfInput)
 
-line :: RunConfiguration -> Parser MBLLine
-line conf =
-  (RefLine <$> ref conf <|> (MBLCandidate <$> mbl conf)) <?> "Ref Lines"
+tick :: ParseConfiguration -> Parser TickRate
+tick _ =
+  TickRate
+    <$> (string "tick" *> skipSpace *> char ':' *> skipSpace *> D.duration)
+    <?> "One Ref line"
 
-mbl :: RunConfiguration -> Parser MBL
+
+mbl :: ParseConfiguration -> Parser CoreMBL
 mbl conf =
-  MBL
+  CoreMBL
     <$> maybeOption name'
+    <*  skipSpace
+    <*> repeat'
+    <*  skipSpace
     <*> many1 (wait conf <|> print conf)
     <?> "One MBL line"
 
+repeat' :: Parser Repeat
+repeat' = (char '|' *> pure Infinite) <|> (Repeat <$> looping) <|> pure Once
+ where
+  looping :: Parser Int
+  looping =
+    char '>' *> (round <$> scientific) <|> (length <$> many1 (char '>'))
+
+parseRepeat :: String -> Either String Repeat
+parseRepeat = parseOnly repeat' . BS.pack
+
+
 name' :: Parser Name
-name' = Name <$> strip <$> takeWhile1_ (not . end) <* char ':' <* skipSpace
+name' = strip <$> takeWhile1_ (not . end) <* char ':' <* skipSpace
  where
   end c = c == ':' || isEndOfLine c
   strip :: ByteString -> ByteString
@@ -185,3 +253,7 @@ unescape = BS.pack . unescape' . BS.unpack
   unescape' ""              = ""
   unescape' ('\\' : x : xs) = x : unescape' xs
   unescape' (x        : xs) = x : unescape' xs
+
+
+liftEither :: (MonadFail m, Show a) => Either a b -> m b
+liftEither = either (\err -> fail $ show err) pure

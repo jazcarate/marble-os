@@ -8,8 +8,7 @@ import           Mbl                            ( runParser
                                                 , interpret
                                                 , MBL
                                                 )
-import qualified Data.ByteString               as BS
-import qualified Data.Text                     as T
+import qualified Data.ByteString.Char8         as BS
 import qualified Configuration                 as C
 import qualified Control.Concurrent.MVar       as Con
 import qualified System.Daemon                 as D
@@ -25,6 +24,7 @@ import           Control.Pipe.Serialize         ( serializer
                                                 , deserializer
                                                 )
 import qualified Control.Concurrent.Chan       as Chan
+import qualified Text.Editor                   as E
 
 data Command = Hello MBL
              | TriggerStart
@@ -85,15 +85,20 @@ handleCommands stateVar reader writer =
         newMbl <- lift $ Chan.readChan newChan
         P.yield $ Start newMbl
 
+getContent :: C.Source -> IO BS.ByteString
+getContent s = case s of
+  C.File   filename -> BS.readFile $ BS.unpack filename
+  C.Inline content  -> pure $ content
+
 
 main :: IO ()
 main = do
   config <- args
   case config of
-    C.Run config' -> do
-      contents <- BS.readFile $ T.unpack $ C.path config'
-      mbl      <- either (fail) pure $ runParser config' contents
-      interpret config' mbl
+    C.Run (C.RunConfiguration source parseConfig) -> do
+      contents <- getContent source
+      mbl      <- either (fail) pure $ runParser parseConfig contents
+      interpret mbl
     C.Daemon (C.DaemonConfiguration config' remote) -> do
       let port    = C.port remote
       let host    = C.host remote
@@ -107,26 +112,31 @@ main = do
         else pure ()
       res <- D.runClient (C.unHost host) port (command)
       print (res :: Maybe Response)
+      x <- E.runUserEditorDWIM (E.mkTemplate "mbl") (BS.pack $ show res) -- TODO: I left off here
+      print x
+
      where
       command :: Command
       command = case config' of
         C.List  -> List
         C.Start -> TriggerStart
-    C.Sync (C.SyncConfiguration config' remote) -> do
-      let port    = C.port remote
-      let host    = (C.unHost $ C.host remote)
-      let options = def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
-      if host == def
-        then do
-          state <- Con.newMVar emptyState
-          D.ensureDaemonWithHandlerRunning "marble-os"
-                                           options
-                                           (handleCommands state)
-        else pure ()
-      contents <- BS.readFile $ T.unpack $ C.path config'
-      mbl      <- either (fail) pure $ runParser config' contents
-      res      <- D.runClient host port (Hello mbl)
-      case res of
-        Just (Start newMbl) -> interpret config' newMbl
-        _                   -> fail $ show res
+    C.Sync (C.SyncConfiguration (C.RunConfiguration source parseConfig) remote)
+      -> do
+        let port = C.port remote
+        let host = (C.unHost $ C.host remote)
+        let options =
+              def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
+        if host == def
+          then do
+            state <- Con.newMVar emptyState
+            D.ensureDaemonWithHandlerRunning "marble-os"
+                                             options
+                                             (handleCommands state)
+          else pure ()
+        contents <- getContent source
+        mbl      <- either (fail) pure $ runParser parseConfig contents
+        res      <- D.runClient host port (Hello mbl)
+        case res of
+          Just (Start newMbl) -> interpret newMbl
+          _                   -> fail $ show res
 

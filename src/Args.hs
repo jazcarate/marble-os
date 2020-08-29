@@ -6,7 +6,6 @@ import           Options.Applicative            ( Parser
                                                 , long
                                                 , metavar
                                                 , help
-                                                , switch
                                                 , value
                                                 , showDefault
                                                 , short
@@ -26,12 +25,15 @@ import           Options.Applicative            ( Parser
                                                 , showDefaultWith
                                                 , str
                                                 )
-import           Control.Applicative            ( (<|>) )
+import           Control.Applicative            ( (<|>)
+                                                , optional
+                                                )
 import qualified Duration                      as D
 import qualified Data.String                   as S
 import qualified Configuration                 as C
 import           Data.Default                   ( def )
 import qualified Text.Read                     as R
+import           Mbl                            ( parseRepeat )
 
 remote :: Parser C.Remote
 remote =
@@ -80,47 +82,24 @@ daemonSubCmd =
 sync :: Parser C.SyncConfiguration
 sync = C.SyncConfiguration <$> run <*> remote
 
-run :: Parser C.RunConfiguration
-run =
-  C.RunConfiguration
-    <$> strArgument
-          (metavar "CONFIG" <> help "Target marble config file" <> action "file"
+source :: Parser C.Source
+source =
+  (C.File <$> strArgument
+      (metavar "CONFIG" <> help "Target marble config file" <> action "file")
+    )
+    <|> (C.Inline <$> option
+          str
+          (  long "inline"
+          <> short 'i'
+          <> help "Alternatively, you can provide an inline mbl format"
+          <> metavar "MBL"
           )
-    <*> (   (option
-              ((C.Numbered <$> eitherReader parseNumber) <|> (C.Named <$> str))
-              (  long "lane"
-              <> short 'l'
-              <> short 'n'
-              <> help
-                   "If the file is multi-line, what line should it use. -line count starts at 1-. You can also use the lane name."
-              <> metavar "LINE_NUMBER"
-              <> showDefaultWith (\(C.Numbered x) -> show x)
-              <> value (C.Numbered 1)
-              )
-            )
-        <|> (C.Named <$> option
-              str
-              (  long "name" -- For those people that like to *name* their lanes with numbers 
-              <> help
-                   "If the file is multi-line, what lane name should it use. (named lanes start with a name and a `:')."
-              <> metavar "NAME"
-              )
-            )
         )
-    <*> switch
-          (long "repeat" <> short 'r' <> help
-            "Whether to repeat the sequence one it finishes."
-          )
-    <*> option
-          (eitherReader parseDuration)
-          (  long "tick"
-          <> short 't'
-          <> metavar "DURATION"
-          <> help "Duration of each tick."
-          <> showDefault
-          <> value defaultDuration
-          )
-    <*> option
+
+parser :: Parser C.ParseConfiguration
+parser =
+  C.ParseConfiguration
+    <$> option
           (eitherReader parseDelimiter)
           (  long "delimiter"
           <> short 'd'
@@ -129,17 +108,61 @@ run =
           <> showDefault
           <> value defaultDelimiter
           )
+    <*> lane
+    --Overrides
+    <*> pure Nothing -- TODO Add name to sync?
+    <*> optional
+          (C.TickRate <$> option
+            (eitherReader parseDuration)
+            (long "tick" <> short 't' <> metavar "DURATION" <> help
+              "Duration of each tick."
+            )
+          )
+    <*> optional repeat
  where
   defaultDelimiter = '-'
-  defaultDuration  = D.seconds 1
   parseDuration :: String -> Either String D.Duration
   parseDuration = D.parseDuration . S.fromString
   parseDelimiter :: String -> Either String C.Delimiter
   parseDelimiter d = case d of
     x : [] -> Right x
     _      -> Left $ "Invalid delimiter `" <> d <> "`. Must be 1 character."
+
+repeat :: Parser C.Repeat
+repeat = option
+  (eitherReader parseRepeat)
+  (long "repeat" <> short 'r' <> help
+    "Whether to repeat the sequence one it finishes."
+  )
+
+lane :: Parser C.Lane
+lane =
+  (option
+      ((C.Numbered <$> eitherReader parseNumber) <|> (C.Named <$> str))
+      (  long "lane"
+      <> short 'l'
+      <> short 'n'
+      <> help
+           "If the file is multi-line, what line should it use. -line count starts at 1-. You can also use the lane name."
+      <> metavar "LINE_NUMBER"
+      <> showDefaultWith (\(C.Numbered x) -> show x)
+      <> value (C.Numbered 1)
+      )
+    )
+    <|> (C.Named <$> option
+          str
+          (  long "name" -- For those people that like to *name* their lanes with numbers 
+          <> help
+               "If the file is multi-line, what lane name should it use. (named lanes start with a name and a `:')."
+          <> metavar "NAME"
+          )
+        )
+ where
   parseNumber :: String -> Either String Int
   parseNumber = R.readEither
+
+run :: Parser C.RunConfiguration
+run = C.RunConfiguration <$> source <*> parser
 
 
 args :: IO C.Configuration

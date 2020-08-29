@@ -1,5 +1,5 @@
 { mkDerivation, attoparsec, base, bytestring, cereal, containers
-, cursor, daemons, data-default, hspec, microlens
+, daemons, data-default, editor-open, hspec, microlens
 , optparse-applicative, pipes, stdenv, text, time, transformers
 }:
 mkDerivation {
@@ -9,8 +9,8 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    attoparsec base bytestring cereal containers cursor daemons
-    data-default microlens optparse-applicative pipes text time
+    attoparsec base bytestring cereal containers daemons data-default
+    editor-open microlens optparse-applicative pipes text time
     transformers
   ];
   executableHaskellDepends = [ base ];

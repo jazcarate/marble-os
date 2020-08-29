@@ -31,13 +31,13 @@ library
                     , attoparsec
                     , bytestring
                     , daemons
-                    , cursor
                     , cereal
                     , data-default
                     , pipes
                     , transformers
                     , containers
                     , microlens
+                    , editor-open
 
 executable marble
   import:             common-options

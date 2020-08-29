@@ -15,12 +15,13 @@ _A play on words with the phonetics of "marble os" and "marvelous"_
 [![asciicast](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D.svg)](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D)
 
 ## Run Options
-| Option    | Description                                        | Example       | Default value |
-|-----------|----------------------------------------------------|---------------|---------------|
-| repeat    | Whether to repeat the sequence one it finishes     | --repeat      | false         |
-| tick      | Duration of each tick                              | --tick=5s     | 1 second      |
-| delimiter | The character to delimit ticks                     | --delimiter=x | "-"           |
-| lane      | If the file is multi-line, what line should it use | --lane=3      | 1             |
+| Option    | Description                                                                           | Example         | Default value |
+|-----------|---------------------------------------------------------------------------------------|-----------------|---------------|
+| repeat    | Whether to repeat the sequence one it finishes                                        | --repeat        | false         |
+| tick      | Duration of each tick. This value will be overridden by the `tick` in the `.mbl` file | --tick=5s       | 1 second      |
+| delimiter | The character to delimit ticks                                                        | --delimiter=x   | "-"           |
+| lane      | If the file is multi-line, what line should it use                                    | --lane=3        | 1             |
+| inline    | Alternatively, you can provide an inline mbl format                                   | --inline="1--2" |               |
 
 Note: Ticks can be written in seconds, or with `us`, `ms`, `s`, `m` (microseconds, milliseconds, seconds or minutes, respectively) or any combination of them.
 E.g.: 
@@ -28,6 +29,12 @@ E.g.:
 * `$ marble --tick=15` - 15 seconds
 * `$ marble --tick=3m10s` - 3 minutes and 10 seconds _(this follows ISO 8601 duration spec. You can not jump units, and no spaces allowed)_
 * `$ marble --tick=1500` - 1500 seconds = 25 minutes
+
+This also applies to the first row of a `mbl`:
+```mbl
+tick: 1m
+1---2--3
+```
 
 ## Distributed Run Options
 `marble` can also be daemonized to run in-sync from multiple places.

@@ -1,4 +1,5 @@
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Duration where
 
@@ -13,6 +14,8 @@ import           Data.Attoparsec.ByteString.Char8
                                                 , parseOnly
                                                 )
 import           Data.ByteString                ( ByteString )
+import           Data.Serialize                 ( Serialize )
+import           GHC.Generics                   ( Generic )
 
 data DurMicrosecond = DurMicrosecond Int                     deriving (Eq, Ord, Show)
 data DurMillisecond = DurMillisecond Int  (Maybe DurMicrosecond)                   deriving (Eq, Ord, Show)
@@ -53,10 +56,15 @@ durDefault = DurSecond <$> decimal <*> pure Nothing
 parseDuration :: ByteString -> Either String Duration
 parseDuration = parseOnly (duration <* endOfInput)
 
+newtype Microseconds = Microseconds { unMicro :: Int } deriving (Show, Eq, Generic)
+instance Serialize Microseconds
+
+toInt :: Microseconds -> Int
+toInt = unMicro
 
 -- Control-Concurrent.threadDelay wants microseconds 
-toMicroseconds :: Duration -> Int
-toMicroseconds dur = case dur of
+toMicroseconds :: Duration -> Microseconds
+toMicroseconds dur = Microseconds $ case dur of
   DurationMicrosecond dus -> dusToUs dus
   DurationMillisecond dms -> dmsToUs dms
   DurationSecond      ds  -> dsToUs ds
@@ -74,5 +82,6 @@ toMicroseconds dur = case dur of
   dmToUs :: DurMinute -> Int
   dmToUs (DurMinute m mbs) = m * 60_000_000 + maybe 0 dsToUs mbs
 
+-- Test helper :D
 seconds :: Int -> Duration
 seconds = DurationSecond . flip DurSecond Nothing
