@@ -21,9 +21,11 @@ import           Options.Applicative            ( Parser
                                                 , (<**>)
                                                 , auto
                                                 , subparser
+                                                , hidden
                                                 , command
                                                 , showDefaultWith
                                                 , str
+                                                , completeWith
                                                 )
 import           Control.Applicative            ( (<|>)
                                                 , optional
@@ -34,6 +36,7 @@ import qualified Configuration                 as C
 import           Data.Default                   ( def )
 import qualified Text.Read                     as R
 import           Mbl                            ( parseRepeat )
+import           Data.Char                      ( toLower )
 
 remote :: Parser C.Remote
 remote =
@@ -60,6 +63,9 @@ remote =
 
 daemon :: Parser C.DaemonConfiguration
 daemon = C.DaemonConfiguration <$> daemonSubCmd <*> remote
+
+inspect :: Parser C.InspectConfiguration
+inspect = C.InspectConfiguration <$> run
 
 daemonSubCmd :: Parser C.DaemonSubConfiguration
 daemonSubCmd =
@@ -130,10 +136,22 @@ parser =
 
 repeat :: Parser C.Repeat
 repeat = option
-  (eitherReader parseRepeat)
-  (long "repeat" <> short 'r' <> help
-    "Whether to repeat the sequence one it finishes."
+  (   eitherReader parseRepeat --Keep this undocumented. It will be our own little secret.
+  <|> eitherReader readRepeatOption
+  <|> (C.Repeat <$> eitherReader parseNumber)
   )
+  (  long "repeat"
+  <> short 'r'
+  <> help
+       "Whether to repeat the sequence one it finishes. Possible values: `no`, `loop` or number of times"
+  <> completeWith ["no", "loop", "1"]
+  )
+
+readRepeatOption :: String -> Either String C.Repeat
+readRepeatOption s = case toLower <$> s of
+  "no"   -> pure C.Once
+  "loop" -> pure C.Infinite
+  _      -> Left "Could not parse repeat option"
 
 lane :: Parser C.Lane
 lane =
@@ -157,9 +175,9 @@ lane =
           <> metavar "NAME"
           )
         )
- where
-  parseNumber :: String -> Either String Int
-  parseNumber = R.readEither
+
+parseNumber :: String -> Either String Int
+parseNumber = R.readEither
 
 run :: Parser C.RunConfiguration
 run = C.RunConfiguration <$> source <*> parser
@@ -199,6 +217,14 @@ args = execParser opts
                       )
                     )
                 )
+           <> command
+                "inspect"
+                (   C.Inspect
+                <$> (info (inspect <**> helper)
+                          (fullDesc <> progDesc "Inspect a source.")
+                    )
+                )
+           <> hidden
            )
          )
     <**> helper

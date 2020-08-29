@@ -6,6 +6,7 @@ module App where
 import           Args                           ( args )
 import           Mbl                            ( runParser
                                                 , interpret
+                                                , parseAll
                                                 , MBL
                                                 )
 import qualified Data.ByteString.Char8         as BS
@@ -95,6 +96,13 @@ main :: IO ()
 main = do
   config <- args
   case config of
+    C.Inspect (C.InspectConfiguration (C.RunConfiguration source parseConfig))
+      -> do
+        contents <- getContent source
+        let parsed = parseAll parseConfig contents
+        either (\e -> fail $ "could not inspect this because " <> e)
+               (print)
+               parsed
     C.Run (C.RunConfiguration source parseConfig) -> do
       contents <- getContent source
       mbl      <- either (fail) pure $ runParser parseConfig contents

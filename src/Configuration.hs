@@ -33,13 +33,15 @@ data SyncConfiguration = SyncConfiguration RunConfiguration Remote
 
 data DaemonConfiguration = DaemonConfiguration DaemonSubConfiguration Remote
 
+data InspectConfiguration = InspectConfiguration RunConfiguration
+
 data DaemonSubConfiguration = List | Start
 
 data Lane = Numbered Int | Named ByteString
 
 data Remote =  Remote { port   :: Port , host :: Host }
 
-data Configuration = Run RunConfiguration | Sync SyncConfiguration | Daemon DaemonConfiguration
+data Configuration = Run RunConfiguration | Sync SyncConfiguration | Daemon DaemonConfiguration | Inspect InspectConfiguration
 
 newtype Host = Host { unHost :: String } deriving (Show, Eq, Read)
 

@@ -6,6 +6,7 @@
 * Allowed inline mbl
 * Added tick rate in the mbl format
 * Allowed repeat strategy on mbl itself
+* Added inspect command
 
 ## 0.1.2.0 -- 2020-08-16
 

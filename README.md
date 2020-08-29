@@ -14,14 +14,17 @@ _A play on words with the phonetics of "marble os" and "marvelous"_
 
 [![asciicast](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D.svg)](https://asciinema.org/a/ffFLLTRD5ozZj0zqgDzS7rA7D)
 
+## Modes of running
+A marble can be run isolated with the `run` command, or be synchronized with other marbles with the `sync` command.
+
 ## Run Options
-| Option    | Description                                                                           | Example         | Default value |
-|-----------|---------------------------------------------------------------------------------------|-----------------|---------------|
-| repeat    | Whether to repeat the sequence one it finishes                                        | --repeat        | false         |
-| tick      | Duration of each tick. This value will be overridden by the `tick` in the `.mbl` file | --tick=5s       | 1 second      |
-| delimiter | The character to delimit ticks                                                        | --delimiter=x   | "-"           |
-| lane      | If the file is multi-line, what line should it use                                    | --lane=3        | 1             |
-| inline    | Alternatively, you can provide an inline mbl format                                   | --inline="1--2" |               |
+| Option    | Description                                                                                      | Example         | Default value    |
+|-----------|--------------------------------------------------------------------------------------------------|-----------------|------------------|
+| repeat    | Whether to repeat the sequence one it finishes. Possible values: `no`, `loop` or number of times | --repeat=3      | No repeat        |
+| tick      | Duration of each tick. This value will be overridden by the `tick` in the `.mbl` file            | --tick=5s       | 1 second         |
+| delimiter | The character to delimit ticks                                                                   | --delimiter=x   | "-"              |
+| lane      | If the file is multi-line, what line should it use                                               | --lane=3        | 1                |
+| inline    | Alternatively, you can provide an inline mbl format                                              | --inline="1--2" |                  |
 
 Note: Ticks can be written in seconds, or with `us`, `ms`, `s`, `m` (microseconds, milliseconds, seconds or minutes, respectively) or any combination of them.
 E.g.: 
