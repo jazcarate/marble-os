@@ -86,6 +86,13 @@ spec = do
         parse configuration "->>-" `shouldBe` Right [aWait, Print ">>", aWait]
       it "ignores spaces between repeat strategy and rest" $ do
         parse configuration ">3  --" `shouldBe` Right [aWait, aWait]
+    describe "splits" $ do
+      it "can split a print with a special character" $ do
+        parse configuration "2|3" `shouldBe` Right [Print "2", Print "3"]
+      it "the split can be escaped" $ do
+        parse configuration "2\\|3" `shouldBe` Right [Print "2|3"]
+      it "a ref can't be split" $ do
+        parse configuration "1\n[1]: 2|3" `shouldBe` Right [Print "2|3"]
   describe "Mbl Name" $ do
     let parse conf content = name <$> runParser conf content
     it "an mbl can be named" $ do

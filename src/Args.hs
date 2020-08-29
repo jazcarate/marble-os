@@ -25,7 +25,9 @@ import           Options.Applicative            ( Parser
                                                 , command
                                                 , showDefaultWith
                                                 , str
+                                                , readerAbort
                                                 , completeWith
+                                                , ParseError(ErrorMsg)
                                                 )
 import           Control.Applicative            ( (<|>)
                                                 , optional
@@ -139,13 +141,16 @@ repeat = option
   (   eitherReader parseRepeat --Keep this undocumented. It will be our own little secret.
   <|> eitherReader readRepeatOption
   <|> (C.Repeat <$> eitherReader parseNumber)
+  <|> readerAbort (ErrorMsg extraHelp)
   )
   (  long "repeat"
   <> short 'r'
+  <> metavar "TIMES"
   <> help
-       "Whether to repeat the sequence one it finishes. Possible values: `no`, `loop` or number of times"
-  <> completeWith ["no", "loop", "1"]
+       ("Whether to repeat the sequence one it finishes." <> " " <> extraHelp)
+  <> completeWith ["no", "loop", "1", "2"]
   )
+  where extraHelp = "Possible values: `no`, `loop` or number of times."
 
 readRepeatOption :: String -> Either String C.Repeat
 readRepeatOption s = case toLower <$> s of

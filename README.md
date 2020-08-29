@@ -65,6 +65,12 @@ e.g.:You can output "\latex{is my passion}" with this `mbl`:
 \\latex{is my passion}
 ```
 
+If you need to print two things in succession, a `|` can be used to split the prints with no wait in between.
+```mbl
+2|3
+```
+Will print `2`, and then immediately `3`.
+
 ### Citations
 If you need `marble` to output multiline, or otherwise too big of a thing to inline in in the `.mbl` syntax, you can write citation-like references.
 A citation can be used multiple times, in multiple lanes. If a citation is described multiple times, the last one (the one closes to the end of the document) is the one taken into account.

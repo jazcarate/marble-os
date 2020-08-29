@@ -21,6 +21,7 @@ import           Data.Attoparsec.ByteString.Char8
                                                 , option
                                                 , string
                                                 , scientific
+                                                , skipWhile
                                                 )
 import           Data.ByteString                ( ByteString )
 import           Control.Applicative            ( many
@@ -186,9 +187,15 @@ ref _ =
   where end c = isEndOfLine c
 
 print :: ParseConfiguration -> Parser CoreAction
-print conf = CorePrint <$> unescape <$> takeWhile1_ (not . end) <?> "Print"
+print conf =
+  CorePrint
+    <$> unescape
+    <$> takeWhile1_ (not . end)
+    <*  skipWhile isSplit
+    <?> "Print"
  where
-  end c = c == delim || isEndOfLine c
+  isSplit c = c == '|'
+  end c = c == delim || isEndOfLine c || isSplit c
   delim = delimiter conf
 
 wait :: ParseConfiguration -> Parser CoreAction
@@ -208,13 +215,16 @@ mbl conf =
   CoreMBL
     <$> maybeOption name'
     <*  skipSpace
-    <*> repeat'
+    <*> repeatWithDefault
     <*  skipSpace
     <*> many1 (wait conf <|> print conf)
     <?> "One MBL line"
 
+repeatWithDefault :: Parser Repeat
+repeatWithDefault = repeat' <|> pure Once
+
 repeat' :: Parser Repeat
-repeat' = (char '|' *> pure Infinite) <|> (Repeat <$> looping) <|> pure Once
+repeat' = (char '|' *> pure Infinite) <|> (Repeat <$> looping) 
  where
   looping :: Parser Int
   looping =
