@@ -9,7 +9,6 @@ import           Mbl                            ( runParser
                                                 , parseAll
                                                 , MBL
                                                 , name
-                                                , Name
                                                 )
 import qualified Data.ByteString.Char8         as BS
 import qualified Configuration                 as C
@@ -131,45 +130,9 @@ withName mbls' mb = case name mb of
     Just _ -> withName mbls' (mb { name = Just (name' <> "'") })
     _      -> pure mb
   Nothing -> do
-    i <- R.randomRIO (0, length possibleNames - 1)
-    let newName = possibleNames !! i
-    withName mbls' (mb { name = Just newName })
-
-possibleNames :: [Name]
-possibleNames =
-  [ "Big Pearl"
-  , "Black Knight"
-  , "Blazing Fireball"
-  , "Blizzard Blaster"
-  , "Blue Moon"
-  , "Cobra"
-  , "Comet"
-  , "Cool Moody"
-  , "Crazy Cat's Eye"
-  , "Deep Ocean"
-  , "Dragon's Egg"
-  , "Ducktape"
-  , "El Capitan"
-  , "Ghost Plasma"
-  , "Grasshopper"
-  , "Green Turtle"
-  , "H2 Blue"
-  , "Lollipop"
-  , "Marbly McMarbleface"
-  , "Nemo"
-  , "Phoenix"
-  , "Pollo Loco"
-  , "Quicksilver"
-  , "Rastafarian"
-  , "Red Number 3"
-  , "Reflektor"
-  , "Silver Bolt"
-  , "Slimer"
-  , "Summer Sky"
-  , "Superball"
-  , "White Widow"
-  , "Wisp of Darkness"
-  ]
+    i <- R.randomRIO (0, length C.possibleNames - 1)
+    let newName = C.possibleNames !! i
+    withName mbls' (mb { name = Just $ BS.pack newName })
 
 
 updateMBLs :: [MBL] -> [Client] -> TE.Except String [Client]

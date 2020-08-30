@@ -62,3 +62,39 @@ instance Default Host where
 
 instance Default TickRate where
   def = TickRate $ D.seconds 1
+
+possibleNames :: [String]
+possibleNames =
+  [ "Big Pearl"
+  , "Black Knight"
+  , "Blazing Fireball"
+  , "Blizzard Blaster"
+  , "Blue Moon"
+  , "Cobra"
+  , "Comet"
+  , "Cool Moody"
+  , "Crazy Cat's Eye"
+  , "Deep Ocean"
+  , "Dragon's Egg"
+  , "Ducktape"
+  , "El Capitan"
+  , "Ghost Plasma"
+  , "Grasshopper"
+  , "Green Turtle"
+  , "H2 Blue"
+  , "Lollipop"
+  , "Marbly McMarbleface"
+  , "Nemo"
+  , "Phoenix"
+  , "Pollo Loco"
+  , "Quicksilver"
+  , "Rastafarian"
+  , "Red Number 3"
+  , "Reflektor"
+  , "Silver Bolt"
+  , "Slimer"
+  , "Summer Sky"
+  , "Superball"
+  , "White Widow"
+  , "Wisp of Darkness"
+  ]

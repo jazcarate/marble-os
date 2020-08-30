@@ -27,6 +27,7 @@ import           Options.Applicative            ( Parser
                                                 , str
                                                 , readerAbort
                                                 , completeWith
+                                                , completeWith
                                                 , flag'
                                                 , briefDesc
                                                 , ParseError(ErrorMsg)
@@ -41,6 +42,7 @@ import           Data.Default                   ( def )
 import qualified Text.Read                     as R
 import           Mbl                            ( parseRepeat )
 import           Data.Char                      ( toLower )
+import qualified Data.List                     as L
 
 remote :: Parser C.Remote
 remote =
@@ -140,8 +142,13 @@ parser =
     <*> lane
     --Overrides
     <*> optional
-          (option str
-                  (long "name" <> metavar "NAME" <> help "Name of the lane.")
+          (option
+            str
+            (  long "name"
+            <> metavar "NAME"
+            <> help "Name of the lane."
+            <> (completeWith $ quote <$> C.possibleNames)
+            )
           )
     <*> optional
           (C.TickRate <$> option
@@ -159,6 +166,10 @@ parser =
   parseDelimiter d = case d of
     x : [] -> Right x
     _      -> Left $ "Invalid delimiter `" <> d <> "`. Must be 1 character."
+
+quote :: String -> String
+quote x = if L.any ((==) ' ') x then "\"" ++ x ++ "\"" else x
+
 
 repeat :: Parser C.Repeat
 repeat = option
