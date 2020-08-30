@@ -118,7 +118,13 @@ parser =
           )
     <*> lane
     --Overrides
-    <*> pure Nothing -- TODO Add name to sync?
+    <*> optional
+          (option
+            str
+            (long "name" <> metavar "NAME" <> help
+              "Name of the lane."
+            )
+          )
     <*> optional
           (C.TickRate <$> option
             (eitherReader parseDuration)
@@ -174,7 +180,7 @@ lane =
     )
     <|> (C.Named <$> option
           str
-          (  long "name" -- For those people that like to *name* their lanes with numbers 
+          (  long "lane-name" -- For those people that like to *name* their lanes with numbers 
           <> help
                "If the file is multi-line, what lane name should it use. (named lanes start with a name and a `:')."
           <> metavar "NAME"

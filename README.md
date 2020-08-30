@@ -18,13 +18,19 @@ _A play on words with the phonetics of "marble os" and "marvelous"_
 A marble can be run isolated with the `run` command, or be synchronized with other marbles with the `sync` command.
 
 ## Run Options
-| Option    | Description                                                                                      | Example         | Default value    |
-|-----------|--------------------------------------------------------------------------------------------------|-----------------|------------------|
-| repeat    | Whether to repeat the sequence one it finishes. Possible values: `no`, `loop` or number of times | --repeat=3      | No repeat        |
-| tick      | Duration of each tick. This value will be overridden by the `tick` in the `.mbl` file            | --tick=5s       | 1 second         |
-| delimiter | The character to delimit ticks                                                                   | --delimiter=x   | "-"              |
-| lane      | If the file is multi-line, what line should it use                                               | --lane=3        | 1                |
-| inline    | Alternatively, you can provide an inline mbl format                                              | --inline="1--2" |                  |
+| Option    | Description                                         | Example         | Default value |
+|-----------|-----------------------------------------------------|-----------------|---------------|
+| delimiter | The character to delimit ticks                      | --delimiter=x   | "-"           |
+| lane      | If the file is multi-line, what line should it use  | --lane=3        | 1             |
+| inline    | Alternatively, you can provide an inline mbl format | --inline="1--2" |               |
+
+A normal MBL can have it's repeat strategy, name and tickrate inlined, but the CLI allows to override this settings with:
+| Option | Description                                                                                               | Example    | Default value |
+|--------|-----------------------------------------------------------------------------------------------------------|------------|---------------|
+| repeat | Whether to repeat the sequence one it finishes. Possible values: `no`, `loop` or number of times          | --repeat=3 | No repeat     |
+| name   | Name of the lane. This is different to `--lane` which chooses a lane in a `.mbl`, this override that name | --name=5s  | -             |
+| tick   | Duration of each tick. This value will be overridden by the `tick` in the `.mbl` file                     | --tick=5s  | 1 second      |
+
 
 Note: Ticks can be written in seconds, or with `us`, `ms`, `s`, `m` (microseconds, milliseconds, seconds or minutes, respectively) or any combination of them.
 E.g.: 

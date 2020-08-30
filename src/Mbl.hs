@@ -73,6 +73,7 @@ showMBLs mbls = intercalate
   minimumTick = case [ x | (Wait x) <- concatMap actions mbls ] of
     [] -> D.toMicroseconds $ unTickRate def
     ms -> foldl1 gcd ms
+  maxNameLength = maximum $ (maybe 0 ((+ 2) . BS.length)) <$> name <$> mbls
 
   (showMbls, refsMap) = T.runState (CM.mapM storeRefs mbls) Map.empty
   storeRefs :: MBL -> T.State (Map.Map String Char) String
@@ -81,7 +82,12 @@ showMBLs mbls = intercalate
     charActions <- CM.mapM storeLongActions as
     return $ intercalate
       ""
-      [ maybe "" (\n -> BS.unpack n <> ": ") $ name m
+      [ maybe
+          (replicate (maxNameLength) ' ')
+          (\n ->
+            BS.unpack n <> replicate (maxNameLength - BS.length n - 2) ' ' <> ": "
+          )
+        $ name m
       , intercalate "" $ charActions
       , show $ repeat m
       ]

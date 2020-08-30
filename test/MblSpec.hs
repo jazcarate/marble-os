@@ -154,3 +154,13 @@ spec = do
                   Once
             ]
           `shouldBe` "tick: 1s\na-b-a\na---c\n\n[a]: foo\n[b]: bar\n[c]: biz"
+      it "align names" $ do
+        show
+            [ MBL (Just "name")
+                  [Print "foo", aWait, Print "bar", aWait, Print "foo"]
+                  Once
+            , MBL Nothing
+                  [Print "foo", Wait $ D.Microseconds 3000000, Print "biz"]
+                  Once
+            ]
+          `shouldBe` "tick: 1s\nname: a-b-a\n      a---c\n\n[a]: foo\n[b]: bar\n[c]: biz"

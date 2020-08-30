@@ -171,7 +171,7 @@ main = do
     C.Inspect (C.InspectConfiguration (C.RunConfiguration source parseConfig))
       -> do
         contents <- getContent source
-        let parsed = parseAll parseConfig contents
+        let parsed = runParser parseConfig contents
         either (\e -> fail $ "could not inspect this because " <> e)
                (print)
                parsed
