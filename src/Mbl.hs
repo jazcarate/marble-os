@@ -76,34 +76,42 @@ showMBLs mbls = intercalate
   maxNameLength = maximum $ (maybe 0 ((+ 2) . BS.length)) <$> name <$> mbls
 
   (showMbls, refsMap) = T.runState (CM.mapM storeRefs mbls) Map.empty
-  storeRefs :: MBL -> T.State (Map.Map String Char) String
+  storeRefs :: MBL -> T.State (Map.Map ByteString Char) String
   storeRefs m = do
-    let as = show <$> scaleWait minimumTick (actions m)
+    let as = scaleWait minimumTick (actions m)
     charActions <- CM.mapM storeLongActions as
     return $ intercalate
       ""
       [ maybe
           (replicate (maxNameLength) ' ')
           (\n ->
-            BS.unpack n <> replicate (maxNameLength - BS.length n - 2) ' ' <> ": "
+            BS.unpack n
+              <> replicate (maxNameLength - BS.length n - 2) ' '
+              <> ": "
           )
         $ name m
-      , intercalate "" $ charActions
+      , BS.unpack $ BS.intercalate "" charActions
       , show $ repeat m
       ]
-  storeLongActions :: String -> T.State (Map.Map String Char) String
-  storeLongActions a = if length a > 1
-    then do
-      map' <- T.get
-      let maxChar = maximum $ '`' : (snd <$> Map.toList map')
-      let mkey    = Map.lookup a map'
-      case mkey of
-        Nothing -> do
-          let newKey = nextChar maxChar
-          T.modify (Map.insert a newKey)
-          pure [newKey]
-        Just key -> pure [key]
-    else pure a
+  storeLongActions :: Action -> T.State (Map.Map ByteString Char) ByteString
+  storeLongActions a' = case a' of
+    Wait  _ -> pure $ BS.pack $ show a'
+    Print a -> if BS.length escapedA > 1
+      then do
+        map' <- T.get
+        let maxChar = maximum $ '`' : (snd <$> Map.toList map')
+        case Map.lookup a map' of
+          Nothing -> do
+            let newKey = nextChar maxChar
+            T.modify (Map.insert a newKey)
+            pure $ BS.singleton newKey
+          Just key -> pure $ BS.singleton key
+      else pure $ escapedA
+      where escapedA = escape a
+
+escape :: ByteString -> ByteString
+escape = BS.concatMap escape'
+  where escape' c = if c == '-' then "\\-" else BS.singleton c
 
 scaleWait :: D.Microseconds -> [Action] -> [Action]
 scaleWait g as = concatMap scale as
@@ -116,12 +124,12 @@ scaleWait g as = concatMap scale as
 nextChar :: Char -> Char
 nextChar c = Char.chr (Char.ord c + 1)
 
-showRefs :: Map.Map String Char -> [String]
+showRefs :: Map.Map ByteString Char -> [String]
 showRefs m =
   showOneRef <$> (sortBy (\a b -> compare (snd a) (snd b)) (Map.toList m))
 
-showOneRef :: (String, Char) -> String
-showOneRef (val, key) = "[" <> [key] <> "]: " <> val
+showOneRef :: (ByteString, Char) -> String
+showOneRef (val, key) = "[" <> [key] <> "]: " <> BS.unpack val
 
 instance Show Action where
   show a = case a of

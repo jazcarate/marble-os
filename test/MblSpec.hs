@@ -134,8 +134,8 @@ spec = do
         show <$> runParser configuration "tick: 1s\n--a-b" `shouldBe` Right "tick: 1s\n--a-b\n"
       xit "shows the split" $ do --TODO handle split in show
         show <$> runParser configuration "--a|b" `shouldBe` Right "--a|b"
-      xit "escapes delimiters" $ do --TODO handle escaped chars
-        show <$> runParser configuration "--\\-" `shouldBe` Right "--\\-"
+      it "escapes delimiters" $ do
+        show <$> runParser configuration "tick: 1s\n--\\-" `shouldBe` Right "tick: 1s\n--a\n\n[a]: -"
       it "keeps the name" $ do
         show <$> runParser configuration "tick: 1s\nfoo: 1" `shouldBe` Right "tick: 1s\nfoo: 1\n"
       it "shows multiple char in ref" $ do
