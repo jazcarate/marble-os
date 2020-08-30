@@ -48,6 +48,7 @@ import qualified Lens.Micro                    as L
 import           Data.List                      ( find
                                                 , intercalate
                                                 , sortBy
+                                                , groupBy
                                                 )
 import           Lens.Micro                     ( (&)
                                                 , (^.)
@@ -79,7 +80,8 @@ showMBLs mbls = intercalate
   storeRefs :: MBL -> T.State (Map.Map ByteString Char) String
   storeRefs m = do
     let as = scaleWait minimumTick (actions m)
-    charActions <- CM.mapM storeLongActions as
+    charActions <- (CM.mapM . CM.mapM) storeLongActions
+      $ groupBy (\a b -> isPrint a == True && isPrint b == True) as
     return $ intercalate
       ""
       [ maybe
@@ -90,7 +92,7 @@ showMBLs mbls = intercalate
               <> ": "
           )
         $ name m
-      , BS.unpack $ BS.intercalate "" charActions
+      , BS.unpack $ BS.intercalate "" $ BS.intercalate "|" <$> charActions
       , show $ repeat m
       ]
   storeLongActions :: Action -> T.State (Map.Map ByteString Char) ByteString
@@ -109,9 +111,14 @@ showMBLs mbls = intercalate
       else pure $ escapedA
       where escapedA = escape a
 
+isPrint :: Action -> Bool
+isPrint a = case a of
+  Print _ -> True
+  _       -> False
+
 escape :: ByteString -> ByteString
 escape = BS.concatMap escape'
-  where escape' c = if c == '-' then "\\-" else BS.singleton c
+  where escape' c = if c == '-' || c == '|' then BS.snoc "\\" c else BS.singleton c
 
 scaleWait :: D.Microseconds -> [Action] -> [Action]
 scaleWait g as = concatMap scale as

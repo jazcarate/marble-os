@@ -132,8 +132,8 @@ spec = do
     describe "Single Mbl" $ do
       it "shows one char mbl inline" $ do
         show <$> runParser configuration "tick: 1s\n--a-b" `shouldBe` Right "tick: 1s\n--a-b\n"
-      xit "shows the split" $ do --TODO handle split in show
-        show <$> runParser configuration "--a|b" `shouldBe` Right "--a|b"
+      it "shows the split" $ do
+        show <$> runParser configuration "tick: 1s\n--a|b" `shouldBe` Right "tick: 1s\n--a|b\n"
       it "escapes delimiters" $ do
         show <$> runParser configuration "tick: 1s\n--\\-" `shouldBe` Right "tick: 1s\n--a\n\n[a]: -"
       it "keeps the name" $ do
