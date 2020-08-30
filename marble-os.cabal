@@ -24,7 +24,7 @@ library
                     , Args
                     , Mbl
                     , Configuration
-  other-modules:
+  other-modules:      Paths_marble_os
   build-depends:      text
                     , time
                     , optparse-applicative

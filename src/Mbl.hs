@@ -118,7 +118,8 @@ isPrint a = case a of
 
 escape :: ByteString -> ByteString
 escape = BS.concatMap escape'
-  where escape' c = if c == '-' || c == '|' then BS.snoc "\\" c else BS.singleton c
+ where
+  escape' c = if c == '-' || c == '|' then BS.snoc "\\" c else BS.singleton c
 
 scaleWait :: D.Microseconds -> [Action] -> [Action]
 scaleWait g as = concatMap scale as

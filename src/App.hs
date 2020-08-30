@@ -30,11 +30,20 @@ import qualified Control.Concurrent.Chan       as Chan
 import qualified Text.Editor                   as E
 import           Data.List                      ( find )
 import           System.Random                 as R
+import           Paths_marble_os                ( version )
+import           Data.Version                   ( showVersion )
+import qualified System.Exit                   as Exit
+import           Control.Exception              ( catch
+                                                , IOException
+                                                )
+import qualified Control.Monad.Trans.Except    as TE
 
 data Command = Hello MBL
              | TriggerStart
              | List
              | Update [MBL]
+             | Version
+             | Kill
              deriving ( Generic, Show )
 
 
@@ -47,6 +56,8 @@ data Response = Started Int
               | Start MBL
               | Listed [MBL]
               | Ok
+              | Error String
+              | Versioned String
                 deriving ( Generic, Show )
 
 {- 
@@ -54,13 +65,21 @@ data Response = Started Int
   Hello          | await.... Start
   TriggerStart   | Started
   List           | Listed
-  -> Update mbls | Ok
+  -> Update mbls | Ok or Error
+  Version        | Versioned
+  Kill           | [dead]
  -}
 
 instance Serialize Response
 
 emptyState :: State
 emptyState = State []
+
+loop :: (Monad m) => TE.ExceptT e m a -> m e
+loop = M.liftM (either id id) . TE.runExceptT . M.forever
+
+quit :: (Monad m) => e -> TE.ExceptT e m r
+quit = TE.throwE
 
 handleCommands :: Con.MVar State -> DP.Handler ()
 handleCommands stateVar reader writer =
@@ -71,35 +90,40 @@ handleCommands stateVar reader writer =
     <-< deserializer
     <-< reader
  where
-  commandExecuter = M.forever $ do
-    command <- P.await
+  commandExecuter = loop $ do
+    command <- lift $ P.await
     case command of
+      Version -> do
+        lift $ P.yield $ Versioned $ showVersion version
+      Kill -> do
+        lift $ P.yield $ Ok
+        quit ()
       List -> do
-        clients <- lift $ Con.readMVar stateVar
+        clients <- lift $ lift $ Con.readMVar stateVar
         let mbls' = mbls <$> unClients clients
-        P.yield $ Listed mbls'
+        lift $ P.yield $ Listed mbls'
       Update newMBLs -> do
-        lift $ Con.modifyMVar_ stateVar $ \state -> do
-          clients <- updateMBLs newMBLs (unClients state)
-          pure $ State clients
-        P.yield $ Ok
+        opSuccess <- lift $ lift $ Con.modifyMVar stateVar $ \state -> do
+          let clients = TE.runExcept $ updateMBLs newMBLs (unClients state)
+          pure $ (either (const state) State clients, clients)
+        lift $ P.yield $ either Error (const Ok) opSuccess
       TriggerStart -> do
-        clients <- lift $ unClients <$> Con.readMVar stateVar
+        clients <- lift $ lift $ unClients <$> Con.readMVar stateVar
         let n = length clients
-        lift $ M.forM_ clients $ \client ->
+        lift $ lift $ M.forM_ clients $ \client ->
           Chan.writeChan (channel client) (mbls client)
-        P.yield $ Started n
-        lift $ Con.modifyMVar_ stateVar $ \_ -> pure $ emptyState
+        lift $ P.yield $ Started n
+        quit ()
       Hello mbl -> do
-        newChan <- lift Chan.newChan
-        clients <- lift $ unClients <$> Con.readMVar stateVar
+        newChan <- lift $ lift Chan.newChan
+        clients <- lift $ lift $ unClients <$> Con.readMVar stateVar
         let otherMbls = mbls <$> clients
-        mblWithName <- lift $ withName otherMbls mbl
+        mblWithName <- lift $ lift $ withName otherMbls mbl
         let newClient = Client mblWithName newChan
-        lift $ Con.modifyMVar_ stateVar $ \state ->
+        lift $ lift $ Con.modifyMVar_ stateVar $ \state ->
           pure $ state { unClients = unClients state <> [newClient] }
-        newMbl <- lift $ Chan.readChan newChan
-        P.yield $ Start newMbl
+        newMbl <- lift $ lift $ Chan.readChan newChan
+        lift $ P.yield $ Start newMbl
 
 withName :: [MBL] -> MBL -> IO MBL
 withName mbls' mb = case name mb of
@@ -148,14 +172,14 @@ possibleNames =
   ]
 
 
-updateMBLs :: [MBL] -> [Client] -> IO [Client]
+updateMBLs :: [MBL] -> [Client] -> TE.Except String [Client]
 updateMBLs newMbls cls = M.forM cls update
  where
-  update :: Client -> IO Client
+  update :: Client -> TE.Except String Client
   update cl = case find (\m -> (name m) == needle) newMbls of
     Just new -> pure cl { mbls = new }
     Nothing ->
-      fail $ "Can't update MBL with name " ++ maybe "-" BS.unpack needle
+      TE.throwE $ "Can't update MBL with name " ++ maybe "-" BS.unpack needle
     where needle = (name $ mbls cl)
 
 getContent :: C.Source -> IO BS.ByteString
@@ -168,56 +192,32 @@ main :: IO ()
 main = do
   config <- args
   case config of
-    C.Inspect (C.InspectConfiguration (C.RunConfiguration source parseConfig))
-      -> do
+    C.Version (C.VersionConfiguration remote) -> do
+      let port = C.port remote
+      let host = C.host remote
+      res <- D.runClient (C.unHost host) port Version
+        `catch` \(_ :: IOException) -> pure Nothing
+      putStrLn ("marble (local) " ++ showVersion version)
+      case res of
+        Just (Versioned v) -> putStrLn ("marble (daemon) " ++ v)
+        Nothing            -> putStrLn "marble (daemon) not started"
+        _                  -> fail $ "Unexpected response: " ++ show res
+    C.Configuration c -> case c of
+      C.Inspect (C.InspectConfiguration (C.RunConfiguration source parseConfig))
+        -> do
+          contents <- getContent source
+          let parsed = runParser parseConfig contents
+          either (\e -> fail $ "could not inspect this because " <> e)
+                 (putStrLn . show)
+                 parsed
+      C.Run (C.RunConfiguration source parseConfig) -> do
         contents <- getContent source
-        let parsed = runParser parseConfig contents
-        either (\e -> fail $ "could not inspect this because " <> e)
-               (print)
-               parsed
-    C.Run (C.RunConfiguration source parseConfig) -> do
-      contents <- getContent source
-      mbl      <- either (fail) pure $ runParser parseConfig contents
-      interpret mbl
-    C.Daemon (C.DaemonConfiguration config' remote) -> do
-      let port    = C.port remote
-      let host    = C.host remote
-      let options = def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
-      if host == def
-        then do
-          state <- Con.newMVar emptyState
-          D.ensureDaemonWithHandlerRunning "marble-os"
-                                           options
-                                           (handleCommands state)
-        else pure ()
-      res <- D.runClient (C.unHost host) port command
-      case (res :: Maybe Response) of
-        Just (Listed mbls') -> do
-          newContents <- E.runUserEditorDWIM (E.mkTemplate "mbl")
-                                             (BS.pack $ show mbls')
-          newMbls <-
-            either (\e -> fail $ "could not inspect this because " <> e) (pure)
-              $ parseAll
-                  (C.ParseConfiguration '-' undefined Nothing Nothing Nothing) -- TODO: delimiter is BS. Undefined and general badness
-                  newContents
-          res2 <- D.runClient (C.unHost host) port (Update newMbls)
-          case (res2 :: Maybe Response) of
-            Just Ok -> pure ()
-            _       -> fail $ "Unexpected response: " ++ show res2
-        Just (Started count) -> print $ "Started " <> show count
-        _                    -> fail $ "Unexpected response: " ++ show res
-
-     where
-      command :: Command
-      command = case config' of
-        C.List  -> List
-        C.Start -> TriggerStart
-    C.Sync (C.SyncConfiguration (C.RunConfiguration source parseConfig) remote)
-      -> do
-        let port = C.port remote
-        let host = (C.unHost $ C.host remote)
-        let options =
-              def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
+        mbl      <- either (fail) pure $ runParser parseConfig contents
+        interpret mbl
+      C.Daemon (C.DaemonConfiguration config' remote) -> do
+        let port    = C.port remote
+        let host    = C.host remote
+        let options = def { D.daemonPort = port } -- TODO duplicated!
         if host == def
           then do
             state <- Con.newMVar emptyState
@@ -225,10 +225,58 @@ main = do
                                              options
                                              (handleCommands state)
           else pure ()
-        contents <- getContent source
-        mbl      <- either (fail) pure $ runParser parseConfig contents
-        res      <- D.runClient host port (Hello mbl)
-        case res of
-          Just (Start newMbl) -> interpret newMbl
-          _                   -> fail $ show res
+        res <- D.runClient (C.unHost host) port command
+        case (config', res :: Maybe Response) of
+          (C.Edit, Just (Listed mbls')) -> do
+            newContents <- E.runUserEditorDWIM (E.mkTemplate "mbl")
+                                               (BS.pack $ show mbls')
+            newMbls <-
+              either (\e -> fail $ "could not inspect this because " <> e)
+                     (pure)
+                $ parseAll
+                    (C.ParseConfiguration '-' undefined Nothing Nothing Nothing) -- TODO: delimiter is BS. Undefined and general badness
+                    newContents
+            res2 <- D.runClient (C.unHost host) port (Update newMbls)
+            case (res2 :: Maybe Response) of
+              Just Ok          -> pure ()
+              Just (Error err) -> fail err
+              _                -> fail $ "Unexpected response: " ++ show res2
+          (C.List, Just (Listed mbls')) -> do
+            putStrLn $ show mbls'
+          (C.Start, Just (Started count)) ->
+            putStrLn $ "Started " <> show count
+          (_, Just Ok) -> putStrLn "ok"
+          (_, Nothing) -> Exit.exitFailure
+          _ ->
+            fail
+              $  "Unexpected response: "
+              ++ show res
+              ++ "for: "
+              ++ show config'
+       where
+        command :: Command
+        command = case config' of
+          C.List  -> List
+          C.Edit  -> List
+          C.Start -> TriggerStart
+          C.Kill  -> Kill
+      C.Sync (C.SyncConfiguration (C.RunConfiguration source parseConfig) remote)
+        -> do
+          let port = C.port remote
+          let host = (C.unHost $ C.host remote)
+          let options =
+                def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
+          if host == def
+            then do
+              state <- Con.newMVar emptyState
+              D.ensureDaemonWithHandlerRunning "marble-os"
+                                               options
+                                               (handleCommands state)
+            else pure ()
+          contents <- getContent source
+          mbl      <- either (fail) pure $ runParser parseConfig contents
+          res      <- D.runClient host port (Hello mbl)
+          case res of
+            Just (Start newMbl) -> interpret newMbl
+            _                   -> fail $ show res
 

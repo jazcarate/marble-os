@@ -27,6 +27,8 @@ import           Options.Applicative            ( Parser
                                                 , str
                                                 , readerAbort
                                                 , completeWith
+                                                , flag'
+                                                , briefDesc
                                                 , ParseError(ErrorMsg)
                                                 )
 import           Control.Applicative            ( (<|>)
@@ -43,16 +45,7 @@ import           Data.Char                      ( toLower )
 remote :: Parser C.Remote
 remote =
   C.Remote
-    <$> option
-          auto
-          (  long "port"
-          <> short 'p'
-          <> help "Port to run the daemon."
-          <> metavar "PORT"
-          <> showDefault
-          <> value 3000
-          )
-    <*> (C.Host <$> option
+    <$> (C.Host <$> option
           str
           (  long "host"
           <> short 'h'
@@ -62,6 +55,15 @@ remote =
           <> (value $ C.unHost def)
           )
         )
+    <*> option
+          auto
+          (  long "port"
+          <> short 'p'
+          <> help "Port to run the daemon."
+          <> metavar "PORT"
+          <> showDefault
+          <> value 3000
+          )
 
 daemon :: Parser C.DaemonConfiguration
 daemon = C.DaemonConfiguration <$> daemonSubCmd <*> remote
@@ -79,11 +81,30 @@ daemonSubCmd =
                   (fullDesc <> progDesc "List all mbls currently waiting.")
             )
          )
+    <> (command "ls" (C.List <$ info (pure ()) briefDesc) <> hidden)
+    <> command
+         "edit"
+         (  C.Edit
+         <$ (info
+              (pure () <**> helper)
+              (  fullDesc
+              <> progDesc
+                   "Edit the waiting sync'd mbls. Open an $EDITOR to do so. The name is used to update, so feel free to reorder them, but don't change the names"
+              )
+            )
+         )
     <> command
          "start"
          (  C.Start
          <$ (info (pure () <**> helper)
                   (fullDesc <> progDesc "Start all mbls currently waiting.")
+            )
+         )
+    <> command
+         "kill"
+         (  C.Kill
+         <$ (info (pure () <**> helper)
+                  (fullDesc <> progDesc "Kill the running daemon.")
             )
          )
 
@@ -119,11 +140,8 @@ parser =
     <*> lane
     --Overrides
     <*> optional
-          (option
-            str
-            (long "name" <> metavar "NAME" <> help
-              "Name of the lane."
-            )
+          (option str
+                  (long "name" <> metavar "NAME" <> help "Name of the lane.")
           )
     <*> optional
           (C.TickRate <$> option
@@ -194,50 +212,64 @@ run :: Parser C.RunConfiguration
 run = C.RunConfiguration <$> source <*> parser
 
 
-args :: IO C.Configuration
+version :: Parser C.VersionConfiguration
+version =
+  C.VersionConfiguration
+    <$> (  flag'
+            ()
+            (long "version" <> short 'v' <> help "Show local and daemon version"
+            )
+        *> remote
+        )
+
+args :: IO C.Args
 args = execParser opts
  where
   opts = info
-    (    (subparser
-           (  command
-               "run"
-               (   C.Run
-               <$> (info (run <**> helper)
-                         (fullDesc <> progDesc "Run the marble file")
+    (   (    C.Configuration
+        <$>  (subparser
+               (  command
+                   "run"
+                   (   C.Run
+                   <$> (info (run <**> helper)
+                             (fullDesc <> progDesc "Run the marble file")
+                       )
                    )
+               <> command
+                    "sync"
+                    (   C.Sync
+                    <$> (info
+                          (sync <**> helper)
+                          (  fullDesc
+                          <> progDesc
+                               "Start a daemon and wait to run the marble.\nLook at `marble daemon --help` for more information"
+                          )
+                        )
+                    )
+               <> command
+                    "daemon"
+                    (   C.Daemon
+                    <$> (info
+                          (daemon <**> helper)
+                          (  fullDesc
+                          <> progDesc
+                               "Control the daemon to launch `sync`'ed marble clients."
+                          )
+                        )
+                    )
+               <> (  command
+                      "inspect"
+                      (   C.Inspect
+                      <$> (info (inspect <**> helper)
+                                (fullDesc <> progDesc "Inspect a source.")
+                          )
+                      )
+                  <> hidden
+                  )
                )
-           <> command
-                "sync"
-                (   C.Sync
-                <$> (info
-                      (sync <**> helper)
-                      (  fullDesc
-                      <> progDesc
-                           "Start a daemon and wait to run the marble.\nLook at `marble daemon --help` for more information"
-                      )
-                    )
-                )
-           <> command
-                "daemon"
-                (   C.Daemon
-                <$> (info
-                      (daemon <**> helper)
-                      (  fullDesc
-                      <> progDesc
-                           "Control the daemon to launch `sync`'ed marble clients."
-                      )
-                    )
-                )
-           <> command
-                "inspect"
-                (   C.Inspect
-                <$> (info (inspect <**> helper)
-                          (fullDesc <> progDesc "Inspect a source.")
-                    )
-                )
-           <> hidden
-           )
-         )
-    <**> helper
+             )
+        <**> helper
+        )
+    <|> (C.Version <$> version)
     )
     (fullDesc <> header "marble-os - Run things at your own pace")

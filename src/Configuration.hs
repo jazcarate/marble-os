@@ -41,13 +41,17 @@ data DaemonConfiguration = DaemonConfiguration DaemonSubConfiguration Remote
 
 data InspectConfiguration = InspectConfiguration RunConfiguration
 
-data DaemonSubConfiguration = List | Start
+data DaemonSubConfiguration = Edit | List | Start | Kill deriving (Show)
+
+data VersionConfiguration = VersionConfiguration Remote
 
 data Lane = Numbered Int | Named ByteString
 
-data Remote =  Remote { port   :: Port , host :: Host }
+data Remote =  Remote { host :: Host,  port   :: Port  }
 
 data Configuration = Run RunConfiguration | Sync SyncConfiguration | Daemon DaemonConfiguration | Inspect InspectConfiguration
+
+data Args = Configuration Configuration | Version VersionConfiguration
 
 newtype Host = Host { unHost :: String } deriving (Show, Eq, Read)
 

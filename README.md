@@ -116,8 +116,7 @@ Build with `$ make build` and then run the executable `result/bin/marble`
 
 # Missing
 
-### TUI for the daemon
-`brics` tui to see all connected "sync" and .mbl before running.
+* Logs for daemon
 
 ### Bugs
 Starting a `sync` with no demon started fails
