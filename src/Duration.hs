@@ -1,5 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
 
 module Duration where
 
@@ -12,6 +13,7 @@ import           Data.Attoparsec.ByteString.Char8
                                                 , char
                                                 , endOfInput
                                                 , parseOnly
+                                                
                                                 )
 import           Data.ByteString                ( ByteString )
 import           Data.Serialize                 ( Serialize )
@@ -39,7 +41,6 @@ duration =
 durMicrosecond :: Parser DurMicrosecond
 durMicrosecond = DurMicrosecond <$> (decimal <* string "us")
 
-
 durMillisecond :: Parser DurMillisecond
 durMillisecond =
   DurMillisecond <$> (decimal <* string "ms") <*> optional durMicrosecond
@@ -56,8 +57,17 @@ durDefault = DurSecond <$> decimal <*> pure Nothing
 parseDuration :: ByteString -> Either String Duration
 parseDuration = parseOnly (duration <* endOfInput)
 
-newtype Microseconds = Microseconds { unMicro :: Int } deriving (Show, Eq, Generic)
+newtype Microseconds = Microseconds { unMicro :: Int } deriving (Eq, Num, Integral, Enum, Real, Ord, Generic)
 instance Serialize Microseconds
+instance Show Microseconds where
+  show = humanReadableDuration . toInt
+
+humanReadableDuration :: Int -> String
+humanReadableDuration us
+  | us < 1_000 = if us > 0 then show us  ++ "us" else ""
+  | us < 1_000_000 = let ms = us `div` 1_000 in if ms > 0 then show ms  ++ "ms" ++ humanReadableDuration (us `mod` 1_000) else ""
+  | us < 60_000_000 = let s = us `div` 1_000_000 in if s > 0 then show s ++ "s" ++ humanReadableDuration (us `mod` 1_000_000) else ""
+  | otherwise = let m = us `div` 60_000_000 in if m > 0 then show m  ++ "m" ++ humanReadableDuration (us `mod` 60_000_000)  else ""
 
 toInt :: Microseconds -> Int
 toInt = unMicro

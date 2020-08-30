@@ -131,29 +131,26 @@ spec = do
   describe "Mbl Show" $ do
     describe "Single Mbl" $ do
       it "shows one char mbl inline" $ do
-        show <$> runParser configuration "--a-b" `shouldBe` Right "--a-b"
+        show <$> runParser configuration "tick: 1s\n--a-b" `shouldBe` Right "tick: 1s\n--a-b\n"
       xit "shows the split" $ do --TODO handle split in show
         show <$> runParser configuration "--a|b" `shouldBe` Right "--a|b"
+      xit "escapes delimiters" $ do --TODO handle escaped chars
+        show <$> runParser configuration "--\\-" `shouldBe` Right "--\\-"
       it "keeps the name" $ do
-        show <$> runParser configuration "foo: 1" `shouldBe` Right "foo: 1"
+        show <$> runParser configuration "tick: 1s\nfoo: 1" `shouldBe` Right "tick: 1s\nfoo: 1\n"
       it "shows multiple char in ref" $ do
-        show <$> runParser configuration "--foo-" `shouldBe` Right
-          "--a-\n\n[a]: foo"
+        show <$> runParser configuration "tick: 1s\n--foo-" `shouldBe` Right
+          "tick: 1s\n--a-\n\n[a]: foo"
       it "shows single ref when repeated" $ do
-        show <$> runParser configuration "--foo-foo" `shouldBe` Right
-          "--a-a\n\n[a]: foo"
-    xdescribe "Multiple Mbls" $ do
+        show <$> runParser configuration "tick: 1s\n--foo-foo" `shouldBe` Right "tick: 1s\n--a-a\n\n[a]: foo"
+    describe "Multiple Mbls" $ do
       it "shows one char mbl inline" $ do
         show
-            [ MBL
-              (Nothing)
-              [ Print "foo"
-              , aWait
-              , Print "bar"
-              , aWait
-              , Print "foo"
-              ]
-              (Once)
-            , MBL (Nothing) [Print "foo", Wait $ D.Microseconds 3, Print "biz"] (Once)
+            [ MBL Nothing
+                  [Print "foo", aWait, Print "bar", aWait, Print "foo"]
+                  Once
+            , MBL Nothing
+                  [Print "foo", Wait $ D.Microseconds 3000000, Print "biz"]
+                  Once
             ]
-          `shouldBe` "a-b-a\na---c\n\n[a]: foo\n[b]: bar\n[c]: biz"
+          `shouldBe` "tick: 1s\na-b-a\na---c\n\n[a]: foo\n[b]: bar\n[c]: biz"

@@ -37,6 +37,7 @@ library
                     , transformers
                     , containers
                     , microlens
+                    , random
                     , editor-open
 
 executable marble

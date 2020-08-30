@@ -47,12 +47,12 @@ import           Data.Attoparsec.Text           ( isEndOfLine )
 import qualified Lens.Micro                    as L
 import           Data.List                      ( find
                                                 , intercalate
+                                                , sortBy
                                                 )
 import           Lens.Micro                     ( (&)
                                                 , (^.)
                                                 , (%~)
                                                 )
-import           Data.Maybe                     ( catMaybes )
 import           Data.Default                   ( def )
 import qualified Control.Monad.Trans.State.Lazy
                                                as T
@@ -62,41 +62,60 @@ type Name = ByteString
 data MBL = MBL { name :: Maybe Name, actions :: [Action], repeat :: Repeat  } deriving (Generic)
 
 instance Show MBL where
-  show m = intercalate
-    ""
-    [ maybe "" (\n -> BS.unpack n <> ": ") $ name m
-    , intercalate "" $ charActions
-    , show $ repeat m
-    , showRefs longActions
-    ]
-   where
-    (charActions, longActions) =
-      unzip $ T.evalState (CM.mapM runRefs $ (actions m)) Map.empty
-    runRefs :: Action -> T.State (Map.Map String Char) (String, Maybe String)
-    runRefs a = if length s > 1
-      then do
-        map' <- T.get
-        let maxChar = maximum $ '`' : (snd <$> Map.toList map')
-        let mkey    = Map.lookup s map'
-        case mkey of
-          Nothing -> do
-            let newKey = nextChar maxChar
-            T.modify (Map.insert s newKey)
-            let is = [newKey]
-            return (is, Just $ "[" <> is <> "]: " <> s)
-          Just key -> pure ([key], Nothing)
-      else pure (s, Nothing)
-      where s = show a
-  showList ms = undefined
+  show m = showMBLs [m]
+  showList ms s = showMBLs ms ++ s
+
+showMBLs :: [MBL] -> String
+showMBLs mbls = intercalate
+  "\n"
+  (["tick: " ++ show minimumTick] ++ showMbls ++ [""] ++ showRefs refsMap)
+ where
+  minimumTick = case [ x | (Wait x) <- concatMap actions mbls ] of
+    [] -> D.toMicroseconds $ unTickRate def
+    ms -> foldl1 gcd ms
+
+  (showMbls, refsMap) = T.runState (CM.mapM storeRefs mbls) Map.empty
+  storeRefs :: MBL -> T.State (Map.Map String Char) String
+  storeRefs m = do
+    let as = show <$> scaleWait minimumTick (actions m)
+    charActions <- CM.mapM storeLongActions as
+    return $ intercalate
+      ""
+      [ maybe "" (\n -> BS.unpack n <> ": ") $ name m
+      , intercalate "" $ charActions
+      , show $ repeat m
+      ]
+  storeLongActions :: String -> T.State (Map.Map String Char) String
+  storeLongActions a = if length a > 1
+    then do
+      map' <- T.get
+      let maxChar = maximum $ '`' : (snd <$> Map.toList map')
+      let mkey    = Map.lookup a map'
+      case mkey of
+        Nothing -> do
+          let newKey = nextChar maxChar
+          T.modify (Map.insert a newKey)
+          pure [newKey]
+        Just key -> pure [key]
+    else pure a
+
+scaleWait :: D.Microseconds -> [Action] -> [Action]
+scaleWait g as = concatMap scale as
+ where
+  scale :: Action -> [Action]
+  scale a = case a of
+    Wait ms -> replicate (D.toInt $ ms `div` g) (Wait g)
+    _       -> [a]
 
 nextChar :: Char -> Char
 nextChar c = Char.chr (Char.ord c + 1)
 
-showRefs :: [Maybe String] -> String
-showRefs mss = case catMaybes mss of
-  [] -> ""
-  ss -> "\n\n" <> (intercalate "\n" ss)
+showRefs :: Map.Map String Char -> [String]
+showRefs m =
+  showOneRef <$> (sortBy (\a b -> compare (snd a) (snd b)) (Map.toList m))
 
+showOneRef :: (String, Char) -> String
+showOneRef (val, key) = "[" <> [key] <> "]: " <> val
 
 instance Show Action where
   show a = case a of

@@ -8,6 +8,8 @@ import           Mbl                            ( runParser
                                                 , interpret
                                                 , parseAll
                                                 , MBL
+                                                , name
+                                                , Name
                                                 )
 import qualified Data.ByteString.Char8         as BS
 import qualified Configuration                 as C
@@ -26,10 +28,13 @@ import           Control.Pipe.Serialize         ( serializer
                                                 )
 import qualified Control.Concurrent.Chan       as Chan
 import qualified Text.Editor                   as E
+import           Data.List                      ( find )
+import           System.Random                 as R
 
 data Command = Hello MBL
              | TriggerStart
              | List
+             | Update [MBL]
              deriving ( Generic, Show )
 
 
@@ -41,13 +46,15 @@ newtype State = State { unClients :: [Client] }
 data Response = Started Int
               | Start MBL
               | Listed [MBL]
+              | Ok
                 deriving ( Generic, Show )
 
 {- 
-  Command      | Response
-  Hello        | await.... Start
-  TriggerStart | Started
-  List         | Listed
+  Command        | Response
+  Hello          | await.... Start
+  TriggerStart   | Started
+  List           | Listed
+  -> Update mbls | Ok
  -}
 
 instance Serialize Response
@@ -71,6 +78,11 @@ handleCommands stateVar reader writer =
         clients <- lift $ Con.readMVar stateVar
         let mbls' = mbls <$> unClients clients
         P.yield $ Listed mbls'
+      Update newMBLs -> do
+        lift $ Con.modifyMVar_ stateVar $ \state -> do
+          clients <- updateMBLs newMBLs (unClients state)
+          pure $ State clients
+        P.yield $ Ok
       TriggerStart -> do
         clients <- lift $ unClients <$> Con.readMVar stateVar
         let n = length clients
@@ -80,11 +92,71 @@ handleCommands stateVar reader writer =
         lift $ Con.modifyMVar_ stateVar $ \_ -> pure $ emptyState
       Hello mbl -> do
         newChan <- lift Chan.newChan
-        let newClient = Client mbl newChan
+        clients <- lift $ unClients <$> Con.readMVar stateVar
+        let otherMbls = mbls <$> clients
+        mblWithName <- lift $ withName otherMbls mbl
+        let newClient = Client mblWithName newChan
         lift $ Con.modifyMVar_ stateVar $ \state ->
           pure $ state { unClients = unClients state <> [newClient] }
         newMbl <- lift $ Chan.readChan newChan
         P.yield $ Start newMbl
+
+withName :: [MBL] -> MBL -> IO MBL
+withName mbls' mb = case name mb of
+  Just name' -> case find (\m -> (name m) == Just name') mbls' of
+    Just _ -> withName mbls' (mb { name = Just (name' <> "'") })
+    _      -> pure mb
+  Nothing -> do
+    i <- R.randomRIO (0, length possibleNames - 1)
+    let newName = possibleNames !! i
+    withName mbls' (mb { name = Just newName })
+
+possibleNames :: [Name]
+possibleNames =
+  [ "Big Pearl"
+  , "Black Knight"
+  , "Blazing Fireball"
+  , "Blizzard Blaster"
+  , "Blue Moon"
+  , "Cobra"
+  , "Comet"
+  , "Cool Moody"
+  , "Crazy Cat's Eye"
+  , "Deep Ocean"
+  , "Dragon's Egg"
+  , "Ducktape"
+  , "El Capitan"
+  , "Ghost Plasma"
+  , "Grasshopper"
+  , "Green Turtle"
+  , "H2 Blue"
+  , "Lollipop"
+  , "Marbly McMarbleface"
+  , "Nemo"
+  , "Phoenix"
+  , "Pollo Loco"
+  , "Quicksilver"
+  , "Rastafarian"
+  , "Red Number 3"
+  , "Reflektor"
+  , "Silver Bolt"
+  , "Slimer"
+  , "Summer Sky"
+  , "Superball"
+  , "White Widow"
+  , "Wisp of Darkness"
+  ]
+
+
+updateMBLs :: [MBL] -> [Client] -> IO [Client]
+updateMBLs newMbls cls = M.forM cls update
+ where
+  update :: Client -> IO Client
+  update cl = case find (\m -> (name m) == needle) newMbls of
+    Just new -> pure cl { mbls = new }
+    Nothing ->
+      fail $ "Can't update MBL with name " ++ maybe "-" BS.unpack needle
+    where needle = (name $ mbls cl)
 
 getContent :: C.Source -> IO BS.ByteString
 getContent s = case s of
@@ -118,10 +190,22 @@ main = do
                                            options
                                            (handleCommands state)
         else pure ()
-      res <- D.runClient (C.unHost host) port (command)
-      print (res :: Maybe Response)
-      x <- E.runUserEditorDWIM (E.mkTemplate "mbl") (BS.pack $ show res) -- TODO: I left off here
-      print x
+      res <- D.runClient (C.unHost host) port command
+      case (res :: Maybe Response) of
+        Just (Listed mbls') -> do
+          newContents <- E.runUserEditorDWIM (E.mkTemplate "mbl")
+                                             (BS.pack $ show mbls')
+          newMbls <-
+            either (\e -> fail $ "could not inspect this because " <> e) (pure)
+              $ parseAll
+                  (C.ParseConfiguration '-' undefined Nothing Nothing Nothing) -- TODO: delimiter is BS. Undefined and general badness
+                  newContents
+          res2 <- D.runClient (C.unHost host) port (Update newMbls)
+          case (res2 :: Maybe Response) of
+            Just Ok -> pure ()
+            _       -> fail $ "Unexpected response: " ++ show res2
+        Just (Started count) -> print $ "Started " <> show count
+        _                    -> fail $ "Unexpected response: " ++ show res
 
      where
       command :: Command

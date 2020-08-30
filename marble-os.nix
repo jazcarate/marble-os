@@ -1,6 +1,7 @@
 { mkDerivation, attoparsec, base, bytestring, cereal, containers
 , daemons, data-default, editor-open, hspec, microlens
-, optparse-applicative, pipes, stdenv, text, time, transformers
+, optparse-applicative, pipes, random, stdenv, text, time
+, transformers
 }:
 mkDerivation {
   pname = "marble-os";
@@ -10,7 +11,7 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     attoparsec base bytestring cereal containers daemons data-default
-    editor-open microlens optparse-applicative pipes text time
+    editor-open microlens optparse-applicative pipes random text time
     transformers
   ];
   executableHaskellDepends = [ base ];
