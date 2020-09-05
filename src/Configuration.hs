@@ -13,10 +13,11 @@ type Delimiter = Char
 -- Source -> String
 data Source = File ByteString | Inline ByteString
 
-newtype TickRate = TickRate { unTickRate :: D.Duration }
+newtype TickRate = TickRate { unTickRate :: D.Duration } deriving  Show
 -- String + ParseConfiguration = MBL
 data ParseConfiguration = ParseConfiguration
   { delimiter       :: Delimiter
+  , split           :: Delimiter
   , lane            :: Lane
   --Overrides
   , nameOverride            :: Maybe ByteString
@@ -29,7 +30,7 @@ instance Serialize Repeat
 
 instance Show Repeat where
   show c = case c of
-    Infinite -> "|"
+    Infinite -> "<"
     Repeat i -> if i > 3 then ">" ++ show i else replicate i '>'
     Once     -> ""
 

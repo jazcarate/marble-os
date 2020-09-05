@@ -139,6 +139,16 @@ parser =
           <> showDefault
           <> value defaultDelimiter
           )
+    <*> option
+          (eitherReader parseDelimiter)
+          (  long "split"
+          <> short 's'
+          <> metavar "CHAR"
+          <> help
+               "The character to split sequential outputs, with no tick in between."
+          <> showDefault
+          <> value defaultSplit
+          )
     <*> lane
     --Overrides
     <*> optional
@@ -160,6 +170,7 @@ parser =
     <*> optional repeat
  where
   defaultDelimiter = '-'
+  defaultSplit     = '|'
   parseDuration :: String -> Either String D.Duration
   parseDuration = D.parseDuration . S.fromString
   parseDelimiter :: String -> Either String C.Delimiter

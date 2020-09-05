@@ -10,7 +10,7 @@ import           Data.Either                    ( isLeft )
 import           Prelude                 hiding ( repeat )
 
 configuration :: ParseConfiguration
-configuration = ParseConfiguration '-' (Numbered 1) Nothing Nothing Nothing
+configuration = ParseConfiguration '-' '|' (Numbered 1) Nothing Nothing Nothing
 
 defaultWait :: D.Duration
 defaultWait = D.seconds 1
@@ -20,7 +20,10 @@ defaultSeconds :: D.Microseconds
 defaultSeconds = D.toMicroseconds $ defaultWait
 
 aWait :: Action
-aWait = Wait defaultSeconds
+aWait = Wait { implicit = False, time = defaultSeconds }
+
+aImplicitWait :: Action
+aImplicitWait = aWait { implicit = True }
 
 spec :: Spec
 spec = do
@@ -32,16 +35,22 @@ spec = do
       it "can parse prints" $ do
         parse configuration "foo" `shouldBe` Right [Print "foo"]
     describe "Combo" $ do
+      it "waits after a print if there is something else" $ do
+        parse configuration "foo-"
+          `shouldBe` Right [Print "foo", aImplicitWait, aWait]
       it "can parse waits and prints" $ do
-        parse configuration "-foo--bar"
-          `shouldBe` Right [aWait, Print "foo", aWait, aWait, Print "bar"]
+        parse configuration "-foo--bar" `shouldBe` Right
+          [aWait, Print "foo", aImplicitWait, aWait, aWait, Print "bar"]
     describe "Edge case" $ do
       it "fail when parsing empty string" $ do
         parse configuration "" `shouldSatisfy` isLeft
     describe "Configuration" $ do
       it "can change delimiter" $ do
         parse (configuration { delimiter = 'x' }) "xx-foo-x"
-          `shouldBe` Right [aWait, aWait, Print "-foo-", aWait]
+          `shouldBe` Right [aWait, aWait, Print "-foo-", aImplicitWait, aWait]
+      it "can change split" $ do
+        parse (configuration { split = 'x' }) "fooxbar"
+          `shouldBe` Right [Print "foo", aImplicitWait, Print "bar"]
     describe "Escaped" $ do
       it "can print the delimiter if escaped with \\" $ do
         parse configuration "--this is a\\-somewhat\\-convoluted example"
@@ -51,8 +60,8 @@ spec = do
                        , Print "this is a-somewhat-convoluted example"
                        ]
       it "needs to escape the escape" $ do
-        parse configuration "--\\\\--"
-          `shouldBe` Right [aWait, aWait, Print "\\", aWait, aWait]
+        parse configuration "--\\\\--" `shouldBe` Right
+          [aWait, aWait, Print "\\", aImplicitWait, aWait, aWait]
     describe "multi-line" $ do
       it "chooses the line configured" $ do
         parse configuration { lane = Numbered 2 } "1\n2"
@@ -73,24 +82,35 @@ spec = do
       it "can do multi-line" $ do
         parse configuration "1\n[1]:\nfoo\\\nbar\n[2]: Biz"
           `shouldBe` Right [Print "foo\nbar"]
+      it "interprets a ref as a standalone tick" $ do
+        parse configuration "12\n[1]:foo\n[2]: bar"
+          `shouldBe` Right [Print "foo", aImplicitWait, Print "bar"]
+      it "assumes print if the ir no ref" $ do
+        parse configuration "12\n[1]:foo"
+          `shouldBe` Right [Print "foo", aImplicitWait, Print "2"]
+      it "matches the longest ref" $ do
+        parse configuration "12\n[1]:foo\n[12]: bar"
+          `shouldBe` Right [Print "bar"]
     describe "tick rate" $ do
       it "can interpret inline tick rate" $ do
-        parse configuration "tick: 3s\n-" `shouldBe` Right [Wait threeSeconds]
+        parse configuration "tick: 3s\n-"
+          `shouldBe` Right [Wait { implicit = False, time = threeSeconds }]
       it "configuration overrides tick-rate" $ do
         parse
             configuration { tickRateOverride = Just $ TickRate $ D.seconds 3 }
             "tick: 2m\n-"
-          `shouldBe` Right [Wait threeSeconds]
+          `shouldBe` Right [Wait { implicit = False, time = threeSeconds }]
       it "fails with multiple tick rates" $ do
         parse configuration "tick: 3s\ntick: 2s-" `shouldSatisfy` isLeft
     describe "Repeat strategy symbols" $ do
       it "ignores any repeat strategy symbol not in the beginning" $ do
-        parse configuration "->>-" `shouldBe` Right [aWait, Print ">>", aWait]
+        parse configuration "->>" `shouldBe` Right [aWait, Print ">>"]
       it "ignores spaces between repeat strategy and rest" $ do
         parse configuration ">3  --" `shouldBe` Right [aWait, aWait]
     describe "splits" $ do
       it "can split a print with a special character" $ do
-        parse configuration "2|3" `shouldBe` Right [Print "2", Print "3"]
+        parse configuration "2|3"
+          `shouldBe` Right [Print "2", aImplicitWait, Print "3"]
       it "the split can be escaped" $ do
         parse configuration "2\\|3" `shouldBe` Right [Print "2|3"]
       it "a ref can't be split" $ do
@@ -131,36 +151,66 @@ spec = do
   describe "Mbl Show" $ do
     describe "Single Mbl" $ do
       it "shows one char mbl inline" $ do
-        show <$> runParser configuration "tick: 1s\n--a-b" `shouldBe` Right "tick: 1s\n--a-b\n"
+        showMBL <$> runParser configuration "tick: 1s\n--1-2" `shouldBe` Right
+          "tick: 1s\n--a-b\n\n[a]: 1\n[b]: 2"
       it "shows the split" $ do
-        show <$> runParser configuration "tick: 1s\n--a|b" `shouldBe` Right "tick: 1s\n--a|b\n"
+        showMBL <$> runParser configuration "tick: 1s\n--a|b" `shouldBe` Right
+          "tick: 1s\n--ab\n\n[a]: a\n[b]: b"
       it "escapes delimiters" $ do
-        show <$> runParser configuration "tick: 1s\n--\\-" `shouldBe` Right "tick: 1s\n--a\n\n[a]: -"
+        showMBL <$> runParser configuration "tick: 1s\n--\\-" `shouldBe` Right
+          "tick: 1s\n--a\n\n[a]: -"
       it "keeps the name" $ do
-        show <$> runParser configuration "tick: 1s\nfoo: 1" `shouldBe` Right "tick: 1s\nfoo: 1\n"
+        showMBL <$> runParser configuration "tick: 1s\nfoo: 1" `shouldBe` Right
+          "tick: 1s\nfoo: a\n\n[a]: 1"
       it "shows multiple char in ref" $ do
-        show <$> runParser configuration "tick: 1s\n--foo-" `shouldBe` Right
+        showMBL <$> runParser configuration "tick: 1s\n--foo-" `shouldBe` Right
           "tick: 1s\n--a-\n\n[a]: foo"
       it "shows single ref when repeated" $ do
-        show <$> runParser configuration "tick: 1s\n--foo-foo" `shouldBe` Right "tick: 1s\n--a-a\n\n[a]: foo"
+        showMBL
+          <$>        runParser configuration "tick: 1s\n--foo-foo"
+          `shouldBe` Right "tick: 1s\n--a-a\n\n[a]: foo"
     describe "Multiple Mbls" $ do
       it "shows one char mbl inline" $ do
-        show
-            [ MBL Nothing
-                  [Print "foo", aWait, Print "bar", aWait, Print "foo"]
-                  Once
-            , MBL Nothing
-                  [Print "foo", Wait $ D.Microseconds 3000000, Print "biz"]
-                  Once
+        showMBLs
+            [ MBL
+              Nothing
+              [ Print "foo"
+              , aImplicitWait
+              , aWait
+              , Print "bar"
+              , aImplicitWait
+              , aWait
+              , Print "foo"
+              ]
+              Once
+            , MBL
+              Nothing
+              [ Print "foo"
+              , aWait { time = D.Microseconds 3000000 }
+              , Print "biz"
+              ]
+              Once
             ]
           `shouldBe` "tick: 1s\na-b-a\na---c\n\n[a]: foo\n[b]: bar\n[c]: biz"
       it "align names" $ do
-        show
-            [ MBL (Just "name")
-                  [Print "foo", aWait, Print "bar", aWait, Print "foo"]
-                  Once
-            , MBL Nothing
-                  [Print "foo", Wait $ D.Microseconds 3000000, Print "biz"]
-                  Once
+        showMBLs
+            [ MBL
+              (Just "name")
+              [ Print "foo"
+              , aImplicitWait
+              , aWait
+              , Print "bar"
+              , aImplicitWait
+              , aWait
+              , Print "foo"
+              ]
+              Once
+            , MBL
+              Nothing
+              [ Print "foo"
+              , Wait { implicit = False, time = D.Microseconds 3000000 }
+              , Print "biz"
+              ]
+              Once
             ]
           `shouldBe` "tick: 1s\nname: a-b-a\n      a---c\n\n[a]: foo\n[b]: bar\n[c]: biz"

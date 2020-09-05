@@ -48,7 +48,7 @@ import qualified Lens.Micro                    as L
 import           Data.List                      ( find
                                                 , intercalate
                                                 , sortBy
-                                                , groupBy
+                                                , intersperse
                                                 )
 import           Lens.Micro                     ( (&)
                                                 , (^.)
@@ -58,20 +58,19 @@ import           Data.Default                   ( def )
 import qualified Control.Monad.Trans.State.Lazy
                                                as T
 
-data Action = Wait D.Microseconds | Print ByteString deriving (Eq, Generic)
+data Action = Wait {  implicit :: Bool, time :: D.Microseconds } | Print ByteString deriving (Eq, Show, Generic)
 type Name = ByteString
-data MBL = MBL { name :: Maybe Name, actions :: [Action], repeat :: Repeat  } deriving (Generic)
+data MBL = MBL { name :: Maybe Name, actions :: [Action], repeat :: Repeat  } deriving (Generic, Show)
 
-instance Show MBL where
-  show m = showMBLs [m]
-  showList ms s = showMBLs ms ++ s
+showMBL :: MBL -> String
+showMBL m = showMBLs [m]
 
 showMBLs :: [MBL] -> String
 showMBLs mbls = intercalate
   "\n"
   (["tick: " ++ show minimumTick] ++ showMbls ++ [""] ++ showRefs refsMap)
  where
-  minimumTick = case [ x | (Wait x) <- concatMap actions mbls ] of
+  minimumTick = case [ x | (Wait _ x) <- concatMap actions mbls ] of
     [] -> D.toMicroseconds $ unTickRate def
     ms -> foldl1 gcd ms
   maxNameLength = maximum $ (maybe 0 ((+ 2) . BS.length)) <$> name <$> mbls
@@ -80,8 +79,7 @@ showMBLs mbls = intercalate
   storeRefs :: MBL -> T.State (Map.Map ByteString Char) String
   storeRefs m = do
     let as = scaleWait minimumTick (actions m)
-    charActions <- (CM.mapM . CM.mapM) storeLongActions
-      $ groupBy (\a b -> isPrint a == True && isPrint b == True) as
+    charActions <- CM.mapM storeLongActions as
     return $ intercalate
       ""
       [ maybe
@@ -92,24 +90,21 @@ showMBLs mbls = intercalate
               <> ": "
           )
         $ name m
-      , BS.unpack $ BS.intercalate "" $ BS.intercalate "|" <$> charActions
+      , BS.unpack $ BS.intercalate "" $ charActions
       , show $ repeat m
       ]
   storeLongActions :: Action -> T.State (Map.Map ByteString Char) ByteString
   storeLongActions a' = case a' of
-    Wait  _ -> pure $ BS.pack $ show a'
-    Print a -> if BS.length escapedA > 1
-      then do
-        map' <- T.get
-        let maxChar = maximum $ '`' : (snd <$> Map.toList map')
-        case Map.lookup a map' of
-          Nothing -> do
-            let newKey = nextChar maxChar
-            T.modify (Map.insert a newKey)
-            pure $ BS.singleton newKey
-          Just key -> pure $ BS.singleton key
-      else pure $ escapedA
-      where escapedA = escape a
+    Wait _ _ -> pure $ BS.pack $ showAction a'
+    Print a  -> do
+      map' <- T.get
+      let maxChar = maximum $ '`' : (snd <$> Map.toList map')
+      case Map.lookup a map' of
+        Nothing -> do
+          let newKey = nextChar maxChar
+          T.modify (Map.insert a newKey)
+          pure $ BS.singleton newKey
+        Just key -> pure $ BS.singleton key
 
 isPrint :: Action -> Bool
 isPrint a = case a of
@@ -126,8 +121,8 @@ scaleWait g as = concatMap scale as
  where
   scale :: Action -> [Action]
   scale a = case a of
-    Wait ms -> replicate (D.toInt $ ms `div` g) (Wait g)
-    _       -> [a]
+    Wait imp ms -> replicate (D.toInt $ ms `div` g) (Wait imp g)
+    _           -> [a]
 
 nextChar :: Char -> Char
 nextChar c = Char.chr (Char.ord c + 1)
@@ -139,10 +134,10 @@ showRefs m =
 showOneRef :: (ByteString, Char) -> String
 showOneRef (val, key) = "[" <> [key] <> "]: " <> BS.unpack val
 
-instance Show Action where
-  show a = case a of
-    Wait  _ -> "-"
-    Print s -> BS.unpack s
+showAction :: Action -> [Char]
+showAction a = case a of
+  Wait impl _ -> if impl then "" else "-"
+  Print s     -> BS.unpack s
 
 actionsL :: L.Lens' (MBL) [Action]
 actionsL = L.lens actions (\mbl' as -> mbl' { actions = as })
@@ -158,8 +153,8 @@ interpret mbl' = do
   mbl'' :: MBL
   mbl'' = mbl' & actionsL %~ (repeatActions $ repeat mbl')
   interpret' :: Action -> IO ()
-  interpret' (Wait  micros) = C.threadDelay $ D.toInt micros
-  interpret' (Print str   ) = BS.putStrLn str >> S.hFlush S.stdout
+  interpret' (Wait _ micros) = C.threadDelay $ D.toInt micros
+  interpret' (Print str    ) = BS.putStrLn str >> S.hFlush S.stdout
 
 
 preParser :: ByteString -> ByteString
@@ -173,8 +168,8 @@ runParser conf content = do
 
 changeTick :: TickRate -> Action -> Action
 changeTick tr a = case a of
-  Wait _ -> Wait (D.toMicroseconds $ unTickRate tr)
-  _      -> a
+  wait'@(Wait _ _) -> wait' { time = (D.toMicroseconds $ unTickRate tr) }
+  _                -> a
 
 repeatActions :: Repeat -> [a] -> [a]
 repeatActions s = case s of
@@ -197,7 +192,7 @@ choose lane' mbls' = case lane' of
 parseAll :: ParseConfiguration -> ByteString -> Either String [MBL]
 parseAll conf content = do
   core         <- parseOnly (lines conf) (preParser content)
-  intermediate <- toRefs core
+  intermediate <- toIntermediate core
   let mbls' = bindRefs intermediate
   return $ overrides <$> mbls'
  where
@@ -216,7 +211,7 @@ parseAll conf content = do
 
 type RefLine = (ByteString, ByteString)
 
-data CoreAction = CoreWait | CorePrint ByteString -- Unrefed
+data CoreAction = CoreWait { cImplicit :: Bool }| CorePrint ByteString -- Unrefed
 data CoreMBL = CoreMBL { cName :: Maybe Name, cRepeat :: Repeat, cActions :: [CoreAction] }
 data Core = MBLLine CoreMBL | RefLine RefLine | TickRateLine TickRate
 
@@ -233,10 +228,10 @@ line conf =
     <?> "Core Lines"
 
 data IntermediateMBL = IntermediateMBL { candidateMbls :: [CoreMBL], refs :: Map.Map ByteString ByteString, tickRate :: TickRate }
-toRefs :: [Core] -> Either String IntermediateMBL
-toRefs mblLines = IntermediateMBL <$> mbls' <*> refs' <*> tickRate'
+toIntermediate :: [Core] -> Either String IntermediateMBL
+toIntermediate mblLines = IntermediateMBL <$> mbls' <*> refs' <*> tickRate'
  where
-  mbls'     = pure $ [ x | (MBLLine x) <- mblLines ]
+  mbls'     = pure $ ([ x | (MBLLine x) <- mblLines ])
   refs'     = pure $ Map.fromList [ x | (RefLine x) <- mblLines ]
   tickRate' = case [ x | (TickRateLine x) <- mblLines ] of
     [a] -> Right a
@@ -247,15 +242,41 @@ bindRefs :: IntermediateMBL -> [MBL]
 bindRefs intermediate = bindCore <$> candidateMbls intermediate
  where
   bindCore :: CoreMBL -> MBL
-  bindCore core = MBL { name    = cName core
-                      , actions = bindAction <$> (cActions core)
-                      , repeat  = cRepeat core
-                      }
-  bindAction :: CoreAction -> Action
+  bindCore core = MBL
+    { name    = cName core
+    , actions = removeTrailingPrint $ concat $ bindAction <$> (cActions core)
+    , repeat  = cRepeat core
+    }
+  bindAction :: CoreAction -> [Action]
   bindAction action = case action of
-    CorePrint candidate ->
-      maybe (Print candidate) Print (Map.lookup candidate (refs intermediate))
-    CoreWait -> Wait $ D.toMicroseconds $ unTickRate (tickRate intermediate)
+    CorePrint candidate -> intersperse
+      (Wait { implicit = True, time = time' })
+      (partialPrint candidate)
+    CoreWait imp -> [Wait { implicit = imp, time = time' }]
+  time' = D.toMicroseconds $ unTickRate (tickRate intermediate)
+  partialPrint :: ByteString -> [Action]
+  partialPrint candidate =
+    case lookupBestMatch candidate (refs intermediate) of
+      Nothing                  -> [Print candidate]
+      Just (remainder, reffed) -> if BS.null remainder
+        then [Print reffed]
+        else Print reffed : partialPrint remainder
+
+removeTrailingPrint :: [Action] -> [Action]
+removeTrailingPrint a = case reverse a of
+  Wait True _ : ac@(Print _) : acs -> reverse $ ac : acs
+  _ -> a
+
+lookupBestMatch :: ByteString -> Map.Map ByteString a -> Maybe (ByteString, a)
+lookupBestMatch x = lookupBestMatch' BS.empty x
+
+lookupBestMatch'
+  :: ByteString -> ByteString -> Map.Map ByteString a -> Maybe (ByteString, a)
+lookupBestMatch' acc key haystack = do
+  (k, ks) <- BS.unsnoc key
+  case Map.lookup key haystack of
+    Just search -> Just (acc, search)
+    Nothing     -> lookupBestMatch' (BS.cons ks acc) k haystack
 
 
 ref :: ParseConfiguration -> Parser (ByteString, ByteString)
@@ -274,20 +295,29 @@ ref _ =
         )
   where end c = isEndOfLine c
 
-print :: ParseConfiguration -> Parser CoreAction
+print :: ParseConfiguration -> Parser [CoreAction]
 print conf =
+  (:)
+    <$> onePrint conf
+    <*> (char (split conf) *> print conf <|> pure
+          [CoreWait { cImplicit = True }]
+        )
+    <?> "Print"
+
+onePrint :: ParseConfiguration -> Parser CoreAction
+onePrint conf =
   CorePrint
     <$> unescape
     <$> takeWhile1_ (not . end)
     <*  skipWhile isSplit
-    <?> "Print"
+    <?> "One Print"
  where
-  isSplit c = c == '|'
+  isSplit c = c == split conf
   end c = c == delim || isEndOfLine c || isSplit c
   delim = delimiter conf
 
-wait :: ParseConfiguration -> Parser CoreAction
-wait conf = char delim *> pure (CoreWait) <?> "Wait"
+wait :: ParseConfiguration -> Parser [CoreAction]
+wait conf = char delim *> pure ([CoreWait { cImplicit = False }]) <?> "Wait"
   where delim = delimiter conf
 
 
@@ -305,7 +335,7 @@ mbl conf =
     <*  skipSpace
     <*> repeatWithDefault
     <*  skipSpace
-    <*> many1 (wait conf <|> print conf)
+    <*> (concat <$> many1 (wait conf <|> print conf))
     <?> "One MBL line"
 
 repeatWithDefault :: Parser Repeat

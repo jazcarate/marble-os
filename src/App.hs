@@ -9,6 +9,8 @@ import           Mbl                            ( runParser
                                                 , parseAll
                                                 , MBL
                                                 , name
+                                                , showMBL
+                                                , showMBLs
                                                 )
 import qualified Data.ByteString.Char8         as BS
 import qualified Configuration                 as C
@@ -170,7 +172,7 @@ main = do
         contents <- getContent source
         let parsed = runParser parseConfig contents
         either (\e -> fail $ "could not inspect this because " <> e)
-               (putStrLn . show)
+               (putStrLn . showMBL)
                parsed
     C.Run (C.RunConfiguration source parseConfig) -> do
       contents <- getContent source
@@ -191,11 +193,17 @@ main = do
       case (config', res :: Maybe Response) of
         (C.Edit, Just (Listed mbls')) -> do
           newContents <- E.runUserEditorDWIM (E.mkTemplate "mbl")
-                                             (BS.pack $ show mbls')
+                                             (BS.pack $ showMBLs mbls')
           newMbls <-
             either (\e -> fail $ "could not inspect this because " <> e) (pure)
               $ parseAll
-                  (C.ParseConfiguration '-' undefined Nothing Nothing Nothing) -- TODO: delimiter is BS. Undefined and general badness
+                  (C.ParseConfiguration '-'
+                                        '|'
+                                        undefined
+                                        Nothing
+                                        Nothing
+                                        Nothing
+                  ) -- TODO: delimiter is BS. Undefined and general badness
                   newContents
           res2 <- D.runClient (C.unHost host) port (Update newMbls)
           case (res2 :: Maybe Response) of
@@ -203,7 +211,7 @@ main = do
             Just (Error err) -> fail err
             _                -> fail $ "Unexpected response: " ++ show res2
         (C.List, Just (Listed mbls')) -> do
-          putStrLn $ show mbls'
+          putStrLn $ showMBLs mbls'
         (C.Start, Just (Started count)) -> putStrLn $ "Started " <> show count
         (_      , Just Ok             ) -> putStrLn "ok"
         (_      , Nothing             ) -> Exit.exitFailure

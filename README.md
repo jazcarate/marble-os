@@ -18,11 +18,12 @@ _A play on words with the phonetics of "marble os" and "marvelous"_
 A marble can be run isolated with the `run` command, or be synchronized with other marbles with the `sync` command.
 
 ## Run Options
-| Option    | Description                                         | Example         | Default value |
-|-----------|-----------------------------------------------------|-----------------|---------------|
-| delimiter | The character to delimit ticks                      | --delimiter=x   | "-"           |
-| lane      | If the file is multi-line, what line should it use  | --lane=3        | 1             |
-| inline    | Alternatively, you can provide an inline mbl format | --inline="1--2" |               |
+| Option    | Description                                                        | Example         | Default value |
+|-----------|--------------------------------------------------------------------|-----------------|---------------|
+| delimiter | The character to delimit ticks                                     | --delimiter=x   | "-"           |
+| split     | The character to split sequential outputs, with no tick in between | --split=x       | "|"           |
+| lane      | If the file is multi-line, what line should it use                 | --lane=3        | 1             |
+| inline    | Alternatively, you can provide an inline mbl format                | --inline="1--2" |               |
 
 A normal MBL can have it's repeat strategy, name and tickrate inlined, but the CLI allows to override this settings with:
 | Option | Description                                                                                               | Example    | Default value |
@@ -88,6 +89,20 @@ e.g.: If you wanted to output "one", but what to still keep marble alignment, yo
 
 [1]: one
 ```
+
+If a citation matches part of the thing to print, it will get replaced with an implicit wait, to keep the `.mbl` file aligned. 
+e.g.: To make it obvious that the `3` will get printed at the same time in both lanes, it's recommended to use citations as follow
+```mbl
+12-3
+2--3
+
+[1]: one
+[2]: two
+[3]: three
+```
+
+**Recommendation** In each `.mbl` use either all the prints as citations, and rest assured that the column alignment is correct, or do every print as _inline_ and keep in mind the file is no longer aligned.
+Having both citations and inline prints, even though will get processed the same way, every time; might be interpreted counterintuitively.
 
 ### Named
 Lanes can also be named like so:
