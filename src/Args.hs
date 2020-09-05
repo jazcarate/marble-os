@@ -28,9 +28,9 @@ import           Options.Applicative            ( Parser
                                                 , readerAbort
                                                 , completeWith
                                                 , completeWith
-                                                , flag'
                                                 , briefDesc
                                                 , ParseError(ErrorMsg)
+                                                , ParserInfo
                                                 )
 import           Control.Applicative            ( (<|>)
                                                 , optional
@@ -224,63 +224,63 @@ run = C.RunConfiguration <$> source <*> parser
 
 
 version :: Parser C.VersionConfiguration
-version =
-  C.VersionConfiguration
-    <$> (  flag'
-            ()
-            (long "version" <> short 'v' <> help "Show local and daemon version"
-            )
-        *> remote
-        )
+version = C.VersionConfiguration <$> remote
 
-args :: IO C.Args
+args :: IO C.Configuration
 args = execParser opts
- where
-  opts = info
-    (   (    C.Configuration
-        <$>  (subparser
-               (  command
-                   "run"
-                   (   C.Run
-                   <$> (info (run <**> helper)
-                             (fullDesc <> progDesc "Run the marble file")
-                       )
-                   )
-               <> command
-                    "sync"
-                    (   C.Sync
-                    <$> (info
-                          (sync <**> helper)
-                          (  fullDesc
-                          <> progDesc
-                               "Start a daemon and wait to run the marble.\nLook at `marble daemon --help` for more information"
-                          )
-                        )
-                    )
-               <> command
-                    "daemon"
-                    (   C.Daemon
-                    <$> (info
-                          (daemon <**> helper)
-                          (  fullDesc
-                          <> progDesc
-                               "Control the daemon to launch `sync`'ed marble clients."
-                          )
-                        )
-                    )
-               <> (  command
-                      "inspect"
-                      (   C.Inspect
-                      <$> (info (inspect <**> helper)
-                                (fullDesc <> progDesc "Inspect a source.")
-                          )
-                      )
-                  <> hidden
-                  )
+
+opts :: ParserInfo C.Configuration
+opts = info
+  (    subparser
+      (  command
+          "run"
+          (   C.Run
+          <$> (info (run <**> helper)
+                    (fullDesc <> progDesc "Run the marble file")
+              )
+          )
+      <> command
+           "sync"
+           (   C.Sync
+           <$> (info
+                 (sync <**> helper)
+                 (  fullDesc
+                 <> progDesc
+                      "Start a daemon and wait to run the marble.\nLook at `marble daemon --help` for more information"
+                 )
                )
+           )
+      <> command
+           "daemon"
+           (   C.Daemon
+           <$> (info
+                 (daemon <**> helper)
+                 (  fullDesc
+                 <> progDesc
+                      "Control the daemon to launch `sync`'ed marble clients."
+                 )
+               )
+           )
+      <> (  command
+             "inspect"
+             (   C.Inspect
+             <$> (info (inspect <**> helper)
+                       (fullDesc <> progDesc "Inspect a source.")
+                 )
              )
-        <**> helper
-        )
-    <|> (C.Version <$> version)
-    )
-    (fullDesc <> header "marble-os - Run things at your own pace")
+         <> hidden
+         )
+      <> (  command
+             "version"
+             (   C.Version
+             <$> (info
+                   (version <**> helper)
+                   (fullDesc <> progDesc "View daemon and local versions.")
+                 )
+             )
+         <> hidden
+         )
+      )
+  <**> helper
+  )
+  (fullDesc <> header "marble-os - Run things at your own pace")

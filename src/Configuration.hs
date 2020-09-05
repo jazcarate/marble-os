@@ -49,9 +49,7 @@ data Lane = Numbered Int | Named ByteString
 
 data Remote =  Remote { host :: Host,  port   :: Port  }
 
-data Configuration = Run RunConfiguration | Sync SyncConfiguration | Daemon DaemonConfiguration | Inspect InspectConfiguration
-
-data Args = Configuration Configuration | Version VersionConfiguration
+data Configuration = Run RunConfiguration | Sync SyncConfiguration | Daemon DaemonConfiguration | Inspect InspectConfiguration |  Version VersionConfiguration
 
 newtype Host = Host { unHost :: String } deriving (Show, Eq, Read)
 

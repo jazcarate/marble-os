@@ -160,27 +160,68 @@ main = do
       let host = C.host remote
       res <- D.runClient (C.unHost host) port Version
         `catch` \(_ :: IOException) -> pure Nothing
-      putStrLn ("marble (local) " ++ showVersion version)
+      putStrLn ("marble (local)  " ++ showVersion version)
       case res of
         Just (Versioned v) -> putStrLn ("marble (daemon) " ++ v)
         Nothing            -> putStrLn "marble (daemon) not started"
         _                  -> fail $ "Unexpected response: " ++ show res
-    C.Configuration c -> case c of
-      C.Inspect (C.InspectConfiguration (C.RunConfiguration source parseConfig))
-        -> do
-          contents <- getContent source
-          let parsed = runParser parseConfig contents
-          either (\e -> fail $ "could not inspect this because " <> e)
-                 (putStrLn . show)
-                 parsed
-      C.Run (C.RunConfiguration source parseConfig) -> do
+    C.Inspect (C.InspectConfiguration (C.RunConfiguration source parseConfig))
+      -> do
         contents <- getContent source
-        mbl      <- either (fail) pure $ runParser parseConfig contents
-        interpret mbl
-      C.Daemon (C.DaemonConfiguration config' remote) -> do
-        let port    = C.port remote
-        let host    = C.host remote
-        let options = def { D.daemonPort = port } -- TODO duplicated!
+        let parsed = runParser parseConfig contents
+        either (\e -> fail $ "could not inspect this because " <> e)
+               (putStrLn . show)
+               parsed
+    C.Run (C.RunConfiguration source parseConfig) -> do
+      contents <- getContent source
+      mbl      <- either (fail) pure $ runParser parseConfig contents
+      interpret mbl
+    C.Daemon (C.DaemonConfiguration config' remote) -> do
+      let port    = C.port remote
+      let host    = C.host remote
+      let options = def { D.daemonPort = port } -- TODO duplicated!
+      if host == def
+        then do
+          state <- Con.newMVar emptyState
+          D.ensureDaemonWithHandlerRunning "marble-os"
+                                           options
+                                           (handleCommands state)
+        else pure ()
+      res <- D.runClient (C.unHost host) port command
+      case (config', res :: Maybe Response) of
+        (C.Edit, Just (Listed mbls')) -> do
+          newContents <- E.runUserEditorDWIM (E.mkTemplate "mbl")
+                                             (BS.pack $ show mbls')
+          newMbls <-
+            either (\e -> fail $ "could not inspect this because " <> e) (pure)
+              $ parseAll
+                  (C.ParseConfiguration '-' undefined Nothing Nothing Nothing) -- TODO: delimiter is BS. Undefined and general badness
+                  newContents
+          res2 <- D.runClient (C.unHost host) port (Update newMbls)
+          case (res2 :: Maybe Response) of
+            Just Ok          -> pure ()
+            Just (Error err) -> fail err
+            _                -> fail $ "Unexpected response: " ++ show res2
+        (C.List, Just (Listed mbls')) -> do
+          putStrLn $ show mbls'
+        (C.Start, Just (Started count)) -> putStrLn $ "Started " <> show count
+        (_      , Just Ok             ) -> putStrLn "ok"
+        (_      , Nothing             ) -> Exit.exitFailure
+        _ ->
+          fail $ "Unexpected response: " ++ show res ++ "for: " ++ show config'
+     where
+      command :: Command
+      command = case config' of
+        C.List  -> List
+        C.Edit  -> List
+        C.Start -> TriggerStart
+        C.Kill  -> Kill
+    C.Sync (C.SyncConfiguration (C.RunConfiguration source parseConfig) remote)
+      -> do
+        let port = C.port remote
+        let host = (C.unHost $ C.host remote)
+        let options =
+              def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
         if host == def
           then do
             state <- Con.newMVar emptyState
@@ -188,58 +229,10 @@ main = do
                                              options
                                              (handleCommands state)
           else pure ()
-        res <- D.runClient (C.unHost host) port command
-        case (config', res :: Maybe Response) of
-          (C.Edit, Just (Listed mbls')) -> do
-            newContents <- E.runUserEditorDWIM (E.mkTemplate "mbl")
-                                               (BS.pack $ show mbls')
-            newMbls <-
-              either (\e -> fail $ "could not inspect this because " <> e)
-                     (pure)
-                $ parseAll
-                    (C.ParseConfiguration '-' undefined Nothing Nothing Nothing) -- TODO: delimiter is BS. Undefined and general badness
-                    newContents
-            res2 <- D.runClient (C.unHost host) port (Update newMbls)
-            case (res2 :: Maybe Response) of
-              Just Ok          -> pure ()
-              Just (Error err) -> fail err
-              _                -> fail $ "Unexpected response: " ++ show res2
-          (C.List, Just (Listed mbls')) -> do
-            putStrLn $ show mbls'
-          (C.Start, Just (Started count)) ->
-            putStrLn $ "Started " <> show count
-          (_, Just Ok) -> putStrLn "ok"
-          (_, Nothing) -> Exit.exitFailure
-          _ ->
-            fail
-              $  "Unexpected response: "
-              ++ show res
-              ++ "for: "
-              ++ show config'
-       where
-        command :: Command
-        command = case config' of
-          C.List  -> List
-          C.Edit  -> List
-          C.Start -> TriggerStart
-          C.Kill  -> Kill
-      C.Sync (C.SyncConfiguration (C.RunConfiguration source parseConfig) remote)
-        -> do
-          let port = C.port remote
-          let host = (C.unHost $ C.host remote)
-          let options =
-                def { D.daemonPort = port, D.printOnDaemonStarted = False } -- TODO duplicated!
-          if host == def
-            then do
-              state <- Con.newMVar emptyState
-              D.ensureDaemonWithHandlerRunning "marble-os"
-                                               options
-                                               (handleCommands state)
-            else pure ()
-          contents <- getContent source
-          mbl      <- either (fail) pure $ runParser parseConfig contents
-          res      <- D.runClient host port (Hello mbl)
-          case res of
-            Just (Start newMbl) -> interpret newMbl
-            _                   -> fail $ show res
+        contents <- getContent source
+        mbl      <- either (fail) pure $ runParser parseConfig contents
+        res      <- D.runClient host port (Hello mbl)
+        case res of
+          Just (Start newMbl) -> interpret newMbl
+          _                   -> fail $ show res
 
